@@ -1,0 +1,32 @@
+cmake_minimum_required(VERSION 3.22)
+
+# 1. Initialize the Project
+project(AbsynthSynth VERSION 0.0.1)
+
+# 2. Include JUCE
+add_subdirectory(JUCE)
+
+# 3. Create the Plugin Target
+juce_add_plugin(AbsynthSynth
+    COMPANY_NAME "Absherd"
+    IS_SYNTH TRUE                 # Tells DAW this is an instrument
+    NEEDS_MIDI_INPUT TRUE         # So you can play it with a keyboard
+    PRODUCT_NAME "Absynth"
+    FORMATS VST3                  # Build format for VST3
+)
+
+# Ignore VST3 parameter ID warning since this plugin has no parameters
+add_definitions(-DJUCE_IGNORE_VST3_MISMATCHED_PARAMETER_ID_WARNING)
+
+# 4. Link your C++ files
+target_sources(AbsynthSynth PRIVATE
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+)
+
+# 5. Link JUCE Modules (The Web View is essential here!)
+target_link_libraries(AbsynthSynth PRIVATE
+    juce::juce_audio_utils
+    juce::juce_gui_extra          # This holds the WebBridge logic
+    juce::juce_dsp                # subtractive synth math
+)

@@ -1,0 +1,48 @@
+{
+  "Name": "Absynth",
+  "Version": "0.0.1",
+  "Factory Info": {
+    "Vendor": "Absherd",
+    "URL": "",
+    "E-Mail": "",
+    "Flags": {
+      "Unicode": true,
+      "Classes Discardable": false,
+      "Component Non Discardable": false,
+    },
+  },
+  "Classes": [
+    {
+      "CID": "5653544E61646A616273796E74680000",
+      "Category": "Audio Module Class",
+      "Name": "Absynth",
+      "Vendor": "Absherd",
+      "Version": "0.0.1",
+      "SDKVersion": "VST 3.8.0",
+      "Sub Categories": [
+        "Instrument",
+        "Synth",
+      ],
+      "Class Flags": 2,
+      "Cardinality": 2147483647,
+      "Snapshots": [
+      ],
+    },
+    {
+      "CID": "5653454E61646A616273796E74680000",
+      "Category": "Component Controller Class",
+      "Name": "Absynth",
+      "Vendor": "Absherd",
+      "Version": "0.0.1",
+      "SDKVersion": "VST 3.8.0",
+      "Sub Categories": [
+        "Instrument",
+        "Synth",
+      ],
+      "Class Flags": 2,
+      "Cardinality": 2147483647,
+      "Snapshots": [
+      ],
+    },
+  ],
+}
