@@ -12,6 +12,7 @@ juce_add_plugin(AbsynthSynth
     IS_SYNTH TRUE                 # Tells DAW this is an instrument
     NEEDS_MIDI_INPUT TRUE         # So you can play it with a keyboard
     PRODUCT_NAME "Absynth"
+    PLIST_TO_MERGE "<dict><key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/><key>NSAllowsLocalNetworking</key><true/></dict></dict>"
     FORMATS VST3 Standalone       # Build format for VST3 and Standalone app
 )
 
@@ -30,3 +31,13 @@ target_link_libraries(AbsynthSynth PRIVATE
     juce::juce_gui_extra          # This holds the WebBridge logic
     juce::juce_dsp                # subtractive synth math
 )
+
+# 6. Bypass macOS App Transport Security for the Standalone App
+if (APPLE)
+    add_custom_command(TARGET AbsynthSynth_Standalone POST_BUILD
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$<TARGET_FILE_DIR:AbsynthSynth_Standalone>/../Info.plist" || true
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$<TARGET_FILE_DIR:AbsynthSynth_Standalone>/../Info.plist" || true
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$<TARGET_FILE_DIR:AbsynthSynth_Standalone>/../Info.plist" || true
+        COMMENT "Adding App Transport Security exceptions to Standalone App Info.plist"
+    )
+endif()

@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
+#include <juce_audio_devices/juce_audio_devices.h>
 
 class SynthVoice : public juce::SynthesiserVoice
 {
@@ -45,6 +46,9 @@ public:
     void releaseResources() override;
 
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
+
+    void handleWebMidiEvent(int note, int velocity, bool isNoteOn);
+    juce::MidiKeyboardState keyboardState;
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;

@@ -174,6 +174,7 @@ void AbsynthAudioProcessor::changeProgramName (int index, const juce::String& ne
 void AbsynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     synth.setCurrentPlaybackSampleRate(sampleRate);
+    keyboardState.reset();
     
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
@@ -196,6 +197,14 @@ bool AbsynthAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
     return true;
 }
 
+void AbsynthAudioProcessor::handleWebMidiEvent(int note, int velocity, bool isNoteOn)
+{
+    if (isNoteOn)
+        keyboardState.noteOn(1, note, velocity / 127.0f);
+    else
+        keyboardState.noteOff(1, note, 0.0f);
+}
+
 void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -204,6 +213,8 @@ void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+
+    keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(), true);
 
     float cutoff = apvts.getRawParameterValue("cutoff")->load();
     float resonance = apvts.getRawParameterValue("resonance")->load();
