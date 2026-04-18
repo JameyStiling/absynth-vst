@@ -21,7 +21,9 @@ bool SynthVoice::canPlaySound(juce::SynthesiserSound* sound)
 
 void SynthVoice::startNote(int midiNoteNumber, float velocity, juce::SynthesiserSound*, int /*currentPitchWheelPosition*/)
 {
-    osc.setFrequency(juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber));
+    float targetFreq = juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber);
+    smoothedFreq.setCurrentAndTargetValue(targetFreq);
+    osc.setFrequency(targetFreq);
     adsr.noteOn();
 }
 
@@ -53,6 +55,7 @@ void SynthVoice::prepareToPlay(double sampleRate, int samplesPerBlock, int outpu
     gain.prepare(spec);
     
     adsr.setSampleRate(sampleRate);
+    smoothedFreq.reset(sampleRate, 0.05); // Default 50ms glide
     
     isPrepared = true;
 }
@@ -90,6 +93,17 @@ void SynthVoice::updateOscType(int type)
     }
 }
 
+void SynthVoice::setGlideTime(float glideTimeMs)
+{
+    smoothedFreq.reset(getSampleRate(), glideTimeMs * 0.001);
+}
+
+void SynthVoice::triggerGlide(int newNote)
+{
+    float targetFreq = juce::MidiMessage::getMidiNoteInHertz(newNote);
+    smoothedFreq.setTargetValue(targetFreq);
+}
+
 void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples)
 {
     if (!isPrepared) return;
@@ -103,10 +117,23 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
     juce::AudioBuffer<float> synthBuffer(outputBuffer.getNumChannels(), numSamples);
     synthBuffer.clear();
 
+    auto numChannels = synthBuffer.getNumChannels();
+    for (int s = 0; s < numSamples; ++s)
+    {
+        if (smoothedFreq.isSmoothing())
+        {
+            osc.setFrequency(smoothedFreq.getNextValue());
+        }
+        float sample = osc.processSample(0.0f);
+        for (int ch = 0; ch < numChannels; ++ch)
+        {
+            synthBuffer.setSample(ch, s, sample);
+        }
+    }
+
     juce::dsp::AudioBlock<float> audioBlock(synthBuffer);
     juce::dsp::ProcessContextReplacing<float> context(audioBlock);
     
-    osc.process(context);
     filter.process(context);
     gain.process(context);
 
@@ -121,6 +148,49 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
             clearCurrentNote();
         }
     }
+}
+
+//==============================================================================
+void CustomSynth::noteOn(int midiChannel, int midiNoteNumber, float velocity)
+{
+    if (isLegato && getNumVoices() > 0)
+    {
+        heldNotes.add(midiNoteNumber);
+        auto* voice = getVoice(0);
+        if (voice->getCurrentlyPlayingNote() >= 0)
+        {
+            if (auto* synthVoice = dynamic_cast<SynthVoice*>(voice))
+                synthVoice->triggerGlide(midiNoteNumber);
+            return;
+        }
+        initialLegatoNote = midiNoteNumber;
+    }
+    juce::Synthesiser::noteOn(midiChannel, midiNoteNumber, velocity);
+}
+
+void CustomSynth::noteOff(int midiChannel, int midiNoteNumber, float velocity, bool allowTailOff)
+{
+    if (isLegato)
+    {
+        heldNotes.removeAllInstancesOf(midiNoteNumber);
+        if (heldNotes.size() > 0)
+        {
+            auto* voice = getVoice(0);
+            if (voice->getCurrentlyPlayingNote() >= 0)
+            {
+                if (auto* synthVoice = dynamic_cast<SynthVoice*>(voice))
+                    synthVoice->triggerGlide(heldNotes.getLast());
+                return;
+            }
+        }
+        else
+        {
+            juce::Synthesiser::noteOff(midiChannel, initialLegatoNote, velocity, allowTailOff);
+            initialLegatoNote = -1;
+            return;
+        }
+    }
+    juce::Synthesiser::noteOff(midiChannel, midiNoteNumber, velocity, allowTailOff);
 }
 
 //==============================================================================
@@ -153,6 +223,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout AbsynthAudioProcessor::creat
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"release", 1}, "Release", juce::NormalisableRange<float>(0.001f, 5.0f, 0.01f, 0.3f), 1.0f));
     
     params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"oscType", 1}, "Osc Type", juce::StringArray{"Sine", "Saw", "Square"}, 1));
+
+    params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"legato", 1}, "Legato", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"glideTime", 1}, "Glide Time", juce::NormalisableRange<float>(0.0f, 1000.0f, 1.0f, 0.3f), 50.0f));
 
     return { params.begin(), params.end() };
 }
@@ -226,6 +299,9 @@ void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     envParams.release = apvts.getRawParameterValue("release")->load();
     
     int oscType = static_cast<int>(apvts.getRawParameterValue("oscType")->load());
+    
+    synth.isLegato = apvts.getRawParameterValue("legato")->load() > 0.5f;
+    synth.glideTimeMs = apvts.getRawParameterValue("glideTime")->load();
 
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
@@ -234,6 +310,7 @@ void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
             voice->updateFilter(cutoff, resonance);
             voice->updateADSR(envParams);
             voice->updateOscType(oscType);
+            voice->setGlideTime(synth.glideTimeMs);
         }
     }
 

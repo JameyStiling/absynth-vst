@@ -18,6 +18,8 @@ AbsynthAudioProcessorEditor::AbsynthAudioProcessorEditor (AbsynthAudioProcessor&
     sustainAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("sustain"), sustainRelay, processorRef.apvts.undoManager);
     releaseAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("release"), releaseRelay, processorRef.apvts.undoManager);
     oscTypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("oscType"), oscTypeRelay, processorRef.apvts.undoManager);
+    legatoAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("legato"), legatoRelay, processorRef.apvts.undoManager);
+    glideTimeAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("glideTime"), glideTimeRelay, processorRef.apvts.undoManager);
 
     webView = std::make_unique<juce::WebBrowserComponent> (
         juce::WebBrowserComponent::Options{}
@@ -42,6 +44,8 @@ AbsynthAudioProcessorEditor::AbsynthAudioProcessorEditor (AbsynthAudioProcessor&
             .withOptionsFrom(sustainRelay)
             .withOptionsFrom(releaseRelay)
             .withOptionsFrom(oscTypeRelay)
+            .withOptionsFrom(legatoRelay)
+            .withOptionsFrom(glideTimeRelay)
     );
     addAndMakeVisible (*webView);
 

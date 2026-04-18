@@ -20,8 +20,12 @@ public:
     void updateADSR(const juce::ADSR::Parameters& envParams);
     void updateOscType(int type); // 0=Sine, 1=Saw, 2=Square
 
+    void setGlideTime(float glideTimeMs);
+    void triggerGlide(int newNote);
+
 private:
     juce::dsp::Oscillator<float> osc;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> smoothedFreq;
     juce::dsp::LadderFilter<float> filter;
     juce::ADSR adsr;
     juce::dsp::Gain<float> gain;
@@ -34,6 +38,18 @@ class SynthSound : public juce::SynthesiserSound
 public:
     bool appliesToNote(int) override { return true; }
     bool appliesToChannel(int) override { return true; }
+};
+
+class CustomSynth : public juce::Synthesiser
+{
+public:
+    bool isLegato { false };
+    float glideTimeMs { 50.0f };
+    juce::Array<int> heldNotes;
+    int initialLegatoNote { -1 };
+
+    void noteOn(int midiChannel, int midiNoteNumber, float velocity) override;
+    void noteOff(int midiChannel, int midiNoteNumber, float velocity, bool allowTailOff) override;
 };
 
 class AbsynthAudioProcessor : public juce::AudioProcessor
@@ -77,7 +93,7 @@ public:
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     
-    juce::Synthesiser synth;
+    CustomSynth synth;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AbsynthAudioProcessor)
 };

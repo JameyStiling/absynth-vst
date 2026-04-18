@@ -24,6 +24,8 @@ private:
     juce::WebSliderRelay sustainRelay { "sustain" };
     juce::WebSliderRelay releaseRelay { "release" };
     juce::WebComboBoxRelay oscTypeRelay { "oscType" };
+    juce::WebToggleButtonRelay legatoRelay { "legato" };
+    juce::WebSliderRelay glideTimeRelay { "glideTime" };
 
     std::unique_ptr<juce::WebSliderParameterAttachment> cutoffAttachment;
     std::unique_ptr<juce::WebSliderParameterAttachment> resonanceAttachment;
@@ -32,6 +34,8 @@ private:
     std::unique_ptr<juce::WebSliderParameterAttachment> sustainAttachment;
     std::unique_ptr<juce::WebSliderParameterAttachment> releaseAttachment;
     std::unique_ptr<juce::WebComboBoxParameterAttachment> oscTypeAttachment;
+    std::unique_ptr<juce::WebToggleButtonParameterAttachment> legatoAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> glideTimeAttachment;
 
     std::unique_ptr<juce::WebBrowserComponent> webView;
 
