@@ -5,21 +5,33 @@
 
 class AbsynthAudioProcessor;
 
-//==============================================================================
 class AbsynthAudioProcessorEditor final : public juce::AudioProcessorEditor
 {
 public:
     explicit AbsynthAudioProcessorEditor (AbsynthAudioProcessor&);
     ~AbsynthAudioProcessorEditor() override;
 
-    //==============================================================================
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
-    // This reference is provided as a quick way for your editor to
-    // access the processor object that created it.
     AbsynthAudioProcessor& processorRef;
+
+    juce::WebSliderRelay cutoffRelay { "cutoff" };
+    juce::WebSliderRelay resonanceRelay { "resonance" };
+    juce::WebSliderRelay attackRelay { "attack" };
+    juce::WebSliderRelay decayRelay { "decay" };
+    juce::WebSliderRelay sustainRelay { "sustain" };
+    juce::WebSliderRelay releaseRelay { "release" };
+    juce::WebComboBoxRelay oscTypeRelay { "oscType" };
+
+    std::unique_ptr<juce::WebSliderParameterAttachment> cutoffAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> resonanceAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> attackAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> decayAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> sustainAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> releaseAttachment;
+    std::unique_ptr<juce::WebComboBoxParameterAttachment> oscTypeAttachment;
 
     std::unique_ptr<juce::WebBrowserComponent> webView;
 

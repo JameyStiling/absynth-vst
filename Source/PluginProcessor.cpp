@@ -2,162 +2,235 @@
 #include "PluginEditor.h"
 
 //==============================================================================
+SynthVoice::SynthVoice()
+{
+    // Setup oscillator
+    osc.initialise([](float x) { return std::sin(x); }); // Default sine
+    
+    // Setup filter
+    filter.setMode(juce::dsp::LadderFilterMode::LPF24);
+    
+    // Gain
+    gain.setGainLinear(1.0f);
+}
+
+bool SynthVoice::canPlaySound(juce::SynthesiserSound* sound)
+{
+    return dynamic_cast<SynthSound*>(sound) != nullptr;
+}
+
+void SynthVoice::startNote(int midiNoteNumber, float velocity, juce::SynthesiserSound*, int /*currentPitchWheelPosition*/)
+{
+    osc.setFrequency(juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber));
+    adsr.noteOn();
+}
+
+void SynthVoice::stopNote(float /*velocity*/, bool allowTailOff)
+{
+    if (allowTailOff)
+    {
+        adsr.noteOff();
+    }
+    else
+    {
+        clearCurrentNote();
+        adsr.reset();
+    }
+}
+
+void SynthVoice::pitchWheelMoved(int /*newPitchWheelValue*/) {}
+void SynthVoice::controllerMoved(int /*controllerNumber*/, int /*newControllerValue*/) {}
+
+void SynthVoice::prepareToPlay(double sampleRate, int samplesPerBlock, int outputChannels)
+{
+    juce::dsp::ProcessSpec spec;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.sampleRate = sampleRate;
+    spec.numChannels = outputChannels;
+
+    osc.prepare(spec);
+    filter.prepare(spec);
+    gain.prepare(spec);
+    
+    adsr.setSampleRate(sampleRate);
+    
+    isPrepared = true;
+}
+
+void SynthVoice::updateFilter(float cutoff, float resonance)
+{
+    filter.setCutoffFrequencyHz(cutoff);
+    filter.setResonance(resonance);
+}
+
+void SynthVoice::updateADSR(const juce::ADSR::Parameters& envParams)
+{
+    adsr.setParameters(envParams);
+}
+
+void SynthVoice::updateOscType(int type)
+{
+    if (oscType == type) return;
+    oscType = type;
+    
+    switch (oscType)
+    {
+        case 0: // Sine
+            osc.initialise([](float x) { return std::sin(x); });
+            break;
+        case 1: // Saw
+            osc.initialise([](float x) { return x / juce::MathConstants<float>::pi; });
+            break;
+        case 2: // Square
+            osc.initialise([](float x) { return x < 0.0f ? -1.0f : 1.0f; });
+            break;
+        default:
+            jassertfalse;
+            break;
+    }
+}
+
+void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples)
+{
+    if (!isPrepared) return;
+
+    if (!adsr.isActive())
+    {
+        clearCurrentNote();
+        return;
+    }
+
+    juce::AudioBuffer<float> synthBuffer(outputBuffer.getNumChannels(), numSamples);
+    synthBuffer.clear();
+
+    juce::dsp::AudioBlock<float> audioBlock(synthBuffer);
+    juce::dsp::ProcessContextReplacing<float> context(audioBlock);
+    
+    osc.process(context);
+    filter.process(context);
+    gain.process(context);
+
+    // Apply ADSR
+    adsr.applyEnvelopeToBuffer(synthBuffer, 0, numSamples);
+
+    for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel)
+    {
+        outputBuffer.addFrom(channel, startSample, synthBuffer, channel, 0, numSamples);
+        if (!adsr.isActive())
+        {
+            clearCurrentNote();
+        }
+    }
+}
+
+//==============================================================================
 AbsynthAudioProcessor::AbsynthAudioProcessor()
      : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
-                       )
+                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+       apvts (*this, nullptr, "Parameters", createParameters())
 {
+    synth.addSound(new SynthSound());
+    for (int i = 0; i < 8; ++i)
+    {
+        synth.addVoice(new SynthVoice());
+    }
 }
 
 AbsynthAudioProcessor::~AbsynthAudioProcessor()
 {
 }
 
+juce::AudioProcessorValueTreeState::ParameterLayout AbsynthAudioProcessor::createParameters()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"cutoff", 1}, "Cutoff", juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f), 2000.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"resonance", 1}, "Resonance", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.1f));
+    
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"attack", 1}, "Attack", juce::NormalisableRange<float>(0.001f, 5.0f, 0.01f, 0.3f), 0.01f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"decay", 1}, "Decay", juce::NormalisableRange<float>(0.001f, 5.0f, 0.01f, 0.3f), 0.1f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"sustain", 1}, "Sustain", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"release", 1}, "Release", juce::NormalisableRange<float>(0.001f, 5.0f, 0.01f, 0.3f), 1.0f));
+    
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"oscType", 1}, "Osc Type", juce::StringArray{"Sine", "Saw", "Square"}, 1));
+
+    return { params.begin(), params.end() };
+}
+
 //==============================================================================
-const juce::String AbsynthAudioProcessor::getName() const
-{
-    return JucePlugin_Name;
-}
+const juce::String AbsynthAudioProcessor::getName() const { return JucePlugin_Name; }
+bool AbsynthAudioProcessor::acceptsMidi() const { return true; }
+bool AbsynthAudioProcessor::producesMidi() const { return false; }
+bool AbsynthAudioProcessor::isMidiEffect() const { return false; }
+double AbsynthAudioProcessor::getTailLengthSeconds() const { return 0.0; }
 
-bool AbsynthAudioProcessor::acceptsMidi() const
-{
-   #if JucePlugin_WantsMidiInput
-    return true;
-   #else
-    return false;
-   #endif
-}
-
-bool AbsynthAudioProcessor::producesMidi() const
-{
-   #if JucePlugin_ProducesMidiOutput
-    return true;
-   #else
-    return false;
-   #endif
-}
-
-bool AbsynthAudioProcessor::isMidiEffect() const
-{
-   #if JucePlugin_IsMidiEffect
-    return true;
-   #else
-    return false;
-   #endif
-}
-
-double AbsynthAudioProcessor::getTailLengthSeconds() const
-{
-    return 0.0;
-}
-
-int AbsynthAudioProcessor::getNumPrograms()
-{
-    return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
-}
-
-int AbsynthAudioProcessor::getCurrentProgram()
-{
-    return 0;
-}
-
-void AbsynthAudioProcessor::setCurrentProgram (int index)
-{
-    juce::ignoreUnused (index);
-}
-
-const juce::String AbsynthAudioProcessor::getProgramName (int index)
-{
-    juce::ignoreUnused (index);
-    return {};
-}
-
-void AbsynthAudioProcessor::changeProgramName (int index, const juce::String& newName)
-{
-    juce::ignoreUnused (index, newName);
-}
+int AbsynthAudioProcessor::getNumPrograms() { return 1; }
+int AbsynthAudioProcessor::getCurrentProgram() { return 0; }
+void AbsynthAudioProcessor::setCurrentProgram (int index) { juce::ignoreUnused(index); }
+const juce::String AbsynthAudioProcessor::getProgramName (int index) { juce::ignoreUnused(index); return {}; }
+void AbsynthAudioProcessor::changeProgramName (int index, const juce::String& newName) { juce::ignoreUnused(index, newName); }
 
 //==============================================================================
 void AbsynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    synth.setCurrentPlaybackSampleRate(sampleRate);
+    
+    for (int i = 0; i < synth.getNumVoices(); ++i)
+    {
+        if (auto voice = dynamic_cast<SynthVoice*>(synth.getVoice(i)))
+        {
+            voice->prepareToPlay(sampleRate, samplesPerBlock, getTotalNumOutputChannels());
+        }
+    }
 }
 
 void AbsynthAudioProcessor::releaseResources()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
 }
 
 bool AbsynthAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-  #if JucePlugin_IsMidiEffect
-    juce::ignoreUnused (layouts);
-    return true;
-  #else
-    // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    // Some plugin hosts, such as certain GarageBand versions, will only
-    // load plugins that support stereo bus layouts.
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
      && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
-
-    // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
-        return false;
-   #endif
-
     return true;
-  #endif
 }
 
-void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
-                                              juce::MidiBuffer& midiMessages)
+void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    juce::ignoreUnused (midiMessages);
-
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    float cutoff = apvts.getRawParameterValue("cutoff")->load();
+    float resonance = apvts.getRawParameterValue("resonance")->load();
+    
+    juce::ADSR::Parameters envParams;
+    envParams.attack = apvts.getRawParameterValue("attack")->load();
+    envParams.decay = apvts.getRawParameterValue("decay")->load();
+    envParams.sustain = apvts.getRawParameterValue("sustain")->load();
+    envParams.release = apvts.getRawParameterValue("release")->load();
+    
+    int oscType = static_cast<int>(apvts.getRawParameterValue("oscType")->load());
+
+    for (int i = 0; i < synth.getNumVoices(); ++i)
     {
-        auto* channelData = buffer.getWritePointer (channel);
-        juce::ignoreUnused (channelData);
-        // ..do something to the data...
+        if (auto voice = dynamic_cast<SynthVoice*>(synth.getVoice(i)))
+        {
+            voice->updateFilter(cutoff, resonance);
+            voice->updateADSR(envParams);
+            voice->updateOscType(oscType);
+        }
     }
+
+    synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
 }
 
 //==============================================================================
-bool AbsynthAudioProcessor::hasEditor() const
-{
-    return true; // (change this to false if you choose to not supply an editor)
-}
+bool AbsynthAudioProcessor::hasEditor() const { return true; }
 
 juce::AudioProcessorEditor* AbsynthAudioProcessor::createEditor()
 {
@@ -167,21 +240,20 @@ juce::AudioProcessorEditor* AbsynthAudioProcessor::createEditor()
 //==============================================================================
 void AbsynthAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+    copyXmlToBinary (*xml, destData);
 }
 
 void AbsynthAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-    juce::ignoreUnused (data, sizeInBytes);
+    std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
+    if (xmlState != nullptr)
+        if (xmlState->hasTagName (apvts.state.getType()))
+            apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
 }
 
 //==============================================================================
-// This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new AbsynthAudioProcessor();
