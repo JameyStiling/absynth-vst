@@ -27,6 +27,14 @@ private:
     juce::WebToggleButtonRelay legatoRelay { "legato" };
     juce::WebSliderRelay glideTimeRelay { "glideTime" };
 
+    // Wub
+    juce::WebToggleButtonRelay wubEnabledRelay { "wubEnabled" };
+    juce::WebSliderRelay wubRateRelay { "wubRate" };
+    juce::WebSliderRelay wubDepthRelay { "wubDepth" };
+    juce::WebSliderRelay wubCenterRelay { "wubCenter" };
+    juce::WebSliderRelay wubResonanceRelay { "wubResonance" };
+    juce::WebComboBoxRelay wubFilterTypeRelay { "wubFilterType" };
+
     std::unique_ptr<juce::WebSliderParameterAttachment> cutoffAttachment;
     std::unique_ptr<juce::WebSliderParameterAttachment> resonanceAttachment;
     std::unique_ptr<juce::WebSliderParameterAttachment> attackAttachment;
@@ -36,6 +44,14 @@ private:
     std::unique_ptr<juce::WebComboBoxParameterAttachment> oscTypeAttachment;
     std::unique_ptr<juce::WebToggleButtonParameterAttachment> legatoAttachment;
     std::unique_ptr<juce::WebSliderParameterAttachment> glideTimeAttachment;
+
+    // Wub
+    std::unique_ptr<juce::WebToggleButtonParameterAttachment> wubEnabledAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> wubRateAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> wubDepthAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> wubCenterAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> wubResonanceAttachment;
+    std::unique_ptr<juce::WebComboBoxParameterAttachment> wubFilterTypeAttachment;
 
     std::unique_ptr<juce::WebBrowserComponent> webView;
 

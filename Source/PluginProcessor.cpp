@@ -227,6 +227,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout AbsynthAudioProcessor::creat
     params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"legato", 1}, "Legato", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"glideTime", 1}, "Glide Time", juce::NormalisableRange<float>(0.0f, 1000.0f, 1.0f, 0.3f), 50.0f));
 
+    // Wub parameters
+    params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wubEnabled", 1}, "Wub Enabled", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wubRate", 1}, "Wub Rate", juce::NormalisableRange<float>(0.1f, 20.0f, 0.01f, 0.5f), 2.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wubDepth", 1}, "Wub Depth", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.8f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wubCenter", 1}, "Wub Center", juce::NormalisableRange<float>(100.0f, 4000.0f, 1.0f, 0.4f), 500.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wubResonance", 1}, "Wub Resonance", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"wubFilterType", 1}, "Wub Filter", juce::StringArray{"LPF", "BPF"}, 0));
+
     return { params.begin(), params.end() };
 }
 
@@ -248,6 +256,12 @@ void AbsynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 {
     synth.setCurrentPlaybackSampleRate(sampleRate);
     keyboardState.reset();
+
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = (juce::uint32)samplesPerBlock;
+    spec.numChannels = (juce::uint32)getTotalNumOutputChannels();
+    wubEngine.prepare(spec);
     
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
@@ -315,6 +329,21 @@ void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     }
 
     synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
+
+    // Apply wub LFO filter post-synth
+    bool wubEnabled = apvts.getRawParameterValue("wubEnabled")->load() > 0.5f;
+    if (wubEnabled)
+    {
+        float wubRate   = apvts.getRawParameterValue("wubRate")->load();
+        float wubDepth  = apvts.getRawParameterValue("wubDepth")->load();
+        float wubCenter = apvts.getRawParameterValue("wubCenter")->load();
+        int   wubType   = (int)apvts.getRawParameterValue("wubFilterType")->load();
+        float wubRes    = apvts.getRawParameterValue("wubResonance")->load();
+
+        wubEngine.setFilterType(wubType);
+        wubEngine.filter.setResonance(wubRes);
+        wubEngine.process(buffer, wubRate, wubDepth, wubCenter);
+    }
 }
 
 //==============================================================================

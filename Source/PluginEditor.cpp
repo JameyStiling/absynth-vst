@@ -21,6 +21,13 @@ AbsynthAudioProcessorEditor::AbsynthAudioProcessorEditor (AbsynthAudioProcessor&
     legatoAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("legato"), legatoRelay, processorRef.apvts.undoManager);
     glideTimeAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("glideTime"), glideTimeRelay, processorRef.apvts.undoManager);
 
+    wubEnabledAttachment    = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("wubEnabled"),    wubEnabledRelay,    processorRef.apvts.undoManager);
+    wubRateAttachment       = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("wubRate"),       wubRateRelay,       processorRef.apvts.undoManager);
+    wubDepthAttachment      = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("wubDepth"),      wubDepthRelay,      processorRef.apvts.undoManager);
+    wubCenterAttachment     = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("wubCenter"),     wubCenterRelay,     processorRef.apvts.undoManager);
+    wubResonanceAttachment  = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("wubResonance"),  wubResonanceRelay,  processorRef.apvts.undoManager);
+    wubFilterTypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("wubFilterType"), wubFilterTypeRelay, processorRef.apvts.undoManager);
+
     webView = std::make_unique<juce::WebBrowserComponent> (
         juce::WebBrowserComponent::Options{}
             .withKeepPageLoadedWhenBrowserIsHidden()
@@ -46,6 +53,12 @@ AbsynthAudioProcessorEditor::AbsynthAudioProcessorEditor (AbsynthAudioProcessor&
             .withOptionsFrom(oscTypeRelay)
             .withOptionsFrom(legatoRelay)
             .withOptionsFrom(glideTimeRelay)
+            .withOptionsFrom(wubEnabledRelay)
+            .withOptionsFrom(wubRateRelay)
+            .withOptionsFrom(wubDepthRelay)
+            .withOptionsFrom(wubCenterRelay)
+            .withOptionsFrom(wubResonanceRelay)
+            .withOptionsFrom(wubFilterTypeRelay)
     );
     addAndMakeVisible (*webView);
 
