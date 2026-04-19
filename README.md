@@ -1,108 +1,172 @@
-# AbsynthSynth
+# ABSYNTH
 
-A JUCE-based audio synthesizer plugin that generates sound using subtractive synthesis techniques.
+> A JUCE 8 subtractive synthesizer with a Vue 3 WebView UI, playable virtual keyboard, legato/portamento engine, and LFO-driven wub generator.
 
-## Features
+---
 
-- **Synthesizer**: Creates audio using DSP algorithms
-- **MIDI Input Support**: Accepts MIDI input for playing notes
-- **Cross-Platform**: Supports VST3 and AU plugin formats
-- **GUI**: Custom editor interface built with JUCE
+## Overview
 
-## Requirements
+**Absynth** is a standalone synthesizer and VST3/AU plugin built on the [JUCE](https://juce.com/) framework. Its entire user interface is a Vue 3 web application running inside a `WKWebView`, communicating with the C++ DSP engine through JUCE 8's native WebView bridge. The result is a fully reactive, hot-reloadable synth UI tightly coupled to a high-performance audio engine.
 
-- **Operating System**: macOS (currently configured for Mac/Bitwig)
-- **Build Tools**:
-  - CMake 3.22 or later
-  - Ninja build system (`brew install ninja`)
-  - C++ compiler (AppleClang on macOS)
-- **Dependencies**:
-  - JUCE framework (included as Git submodule)
+---
+
+## Feature Summary
+
+| Module | Description |
+|--------|-------------|
+| **Oscillator** | Sine, Sawtooth, or Square wave with MIDI note pitch tracking |
+| **Filter** | 24dB/oct Ladder Filter with Cutoff & Resonance |
+| **Envelope (ADSR)** | Attack, Decay, Sustain, Release amplitude envelope |
+| **Legato / Portamento** | Monophonic legato mode with sample-accurate pitch glide |
+| **Wub Generator** | LFO → filter modulation (LPF or BPF) for dubstep-style wub effects |
+| **Virtual Keyboard** | Drag-to-play chromatic keyboard with octave selection |
+
+---
+
+## Architecture
+
+```
+absynth-vst/                   ← This repo (C++ / JUCE)
+│
+├── Source/
+│   ├── PluginProcessor.h/.cpp ← DSP engine (synth voices, wub LFO, ADSR, filter)
+│   └── PluginEditor.h/.cpp    ← WebView host + JS↔C++ parameter bridge
+│
+└── JUCE/                      ← JUCE framework (git submodule)
+
+absynth-ui/                    ← Companion repo (Vue 3 / TypeScript)
+│
+└── src/
+    ├── App.vue                ← Root layout (all synth sections)
+    ├── components/
+    │   ├── JuceKnob.vue       ← Rotary knob bound to JUCE SliderRelay
+    │   ├── JuceSelect.vue     ← Dropdown bound to JUCE ComboBoxRelay
+    │   ├── JuceToggle.vue     ← Toggle switch bound to JUCE ToggleButtonRelay
+    │   └── VirtualKeyboard.vue← Chromatic keyboard → sendMidiNote native bridge
+    └── vite.config.ts         ← Vite config (HMR dev server on localhost:5173)
+```
+
+### JS ↔ C++ Bridge
+
+JUCE 8's `WebBrowserComponent` exposes two-way communication channels:
+
+- **Parameters** (knobs, selects, toggles) use `WebSliderRelay`, `WebComboBoxRelay`, and `WebToggleButtonRelay` on the C++ side, paired with `juce-framework-frontend` hooks on the Vue side. Changes flow in both directions automatically.
+- **MIDI** is sent from JS to C++ via a registered native function: `window.__JUCE__.backend.sendMidiNote(note, velocity, isNoteOn)`. In Vue this is called through `Juce.getNativeFunction("sendMidiNote")`.
+
+---
 
 ## Building
 
 ### Prerequisites
 
-1. Install Ninja build system:
-   ```bash
-   brew install ninja
-   ```
+| Tool | Install |
+|------|---------|
+| CMake ≥ 3.22 | `brew install cmake` |
+| Ninja | `brew install ninja` |
+| Xcode CLT | `xcode-select --install` |
+| Node.js ≥ 18 | [nodejs.org](https://nodejs.org) |
 
-2. Ensure JUCE submodule is initialized:
-   ```bash
-   git submodule update --init --recursive
-   ```
+Initialize JUCE submodule:
 
-### Build Steps
-
-1. **Clean and Configure**:
-   ```bash
-   rm -rf build
-   cmake . -B build -G Ninja -DJUCE_BUILD_EXAMPLES=OFF
-   ```
-
-2. **Build the Plugin**:
-   ```bash
-   cmake --build build --target AbsynthSynth_VST3
-   ```
-   Or for AU format:
-   ```bash
-   cmake --build build --target AbsynthSynth_AU
-   ```
-
-The built plugins will be located in:
-- `build/AbsynthSynth_artefacts/VST3/Absynth.vst3`
-- `build/AbsynthSynth_artefacts/AU/Absynth.component`
-
-## Installation
-
-1. Copy the built plugin files to your DAW's plugin directory:
-   - **VST3**: `/Library/Audio/Plug-Ins/VST3/`
-   - **AU**: `/Library/Audio/Plug-Ins/Components/`
-
-2. Restart your DAW or rescan plugins.
-
-## Usage
-
-1. Open your DAW (e.g., Bitwig, Logic Pro)
-2. Create a new instrument track
-3. Load "Absynth" from the plugin list
-4. Play MIDI notes to generate sound
-
-## Development
-
-### Project Structure
-
-```
-├── CMakeLists.txt          # CMake build configuration
-├── JUCE/                   # JUCE framework submodule
-├── Source/
-│   ├── PluginProcessor.cpp # Audio processing logic
-│   ├── PluginProcessor.h   # Processor class definition
-│   ├── PluginEditor.cpp    # GUI implementation
-│   └── PluginEditor.h      # Editor class definition
-└── build/                  # Build output directory (ignored)
+```bash
+git submodule update --init --recursive
 ```
 
-### Adding Features
+### Configure & Build
 
-- Modify `PluginProcessor.cpp` for audio processing
-- Update `PluginEditor.cpp` for GUI changes
-- Rebuild after changes
+```bash
+# Configure
+cmake . -B build -G Ninja -DJUCE_BUILD_EXAMPLES=OFF
 
-## Contributing
+# Build all targets (Standalone + VST3)
+cmake --build build --parallel 8
+```
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test the build
-5. Submit a pull request
+Outputs:
+- **Standalone**: `build/AbsynthSynth_artefacts/Standalone/Absynth.app`
+- **VST3**: `build/AbsynthSynth_artefacts/VST3/Absynth.vst3`
+
+### Running with Live UI (Development)
+
+Start the Vue dev server in the `absynth-ui` repo first:
+
+```bash
+cd ../absynth-ui
+npm install
+npm run dev        # → http://localhost:5173
+```
+
+Then launch the standalone app:
+
+```bash
+open build/AbsynthSynth_artefacts/Standalone/Absynth.app
+```
+
+The standalone loads `http://localhost:5173` inside its WebView. Vite HMR means any UI change is reflected instantly — no rebuild required.
+
+### Install as Plugin
+
+Copy the built plugin to your system plugin directory:
+
+```bash
+# VST3
+cp -r build/AbsynthSynth_artefacts/VST3/Absynth.vst3 /Library/Audio/Plug-Ins/VST3/
+
+# AU
+cp -r build/AbsynthSynth_artefacts/AU/Absynth.component /Library/Audio/Plug-Ins/Components/
+```
+
+Rescan plugins in your DAW.
+
+---
+
+## Signal Chain
+
+```
+MIDI Input (keyboard / DAW)
+        │
+        ▼
+  MidiKeyboardState  ──────────────────── Virtual Keyboard (JS → C++)
+        │
+        ▼
+  CustomSynth (juce::Synthesiser)
+  ┌─────────────────────────┐
+  │  SynthVoice (×4)        │
+  │   Oscillator (osc type) │
+  │   → SmoothedFreq (glide)│
+  │   → LadderFilter (LPF24)│
+  │   → Gain                │
+  │   → ADSR envelope       │
+  └─────────────────────────┘
+        │
+        ▼  (mixed stereo bus)
+  WubEngine (global post-FX)
+   LFO → LadderFilter (LPF or BPF)
+        │
+        ▼
+   Audio Output
+```
+
+---
+
+## Parameter Reference
+
+See [`PARAMETERS.md`](./PARAMETERS.md) for a full description of every knob, toggle, and selector.
+
+---
+
+## Development Notes
+
+- The `CMakeLists.txt` post-build step injects `NSAppTransportSecurity` into the Standalone `Info.plist` to allow the WebView to connect to `http://localhost:5173`.
+- The Vue dev server **must** run on `localhost` (not `127.0.0.1`) for JUCE's WKWebView security context to treat it as a secure origin.
+- `vueDevTools()` is disabled in `vite.config.ts` — it crashes WKWebView on macOS.
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see `LICENSE` for details.
 
 ## Acknowledgments
 
-- Built with the [JUCE framework](https://juce.com/)
-- Inspired by classic subtractive synthesizers
+Built with [JUCE](https://juce.com/) · UI powered by [Vue 3](https://vuejs.org/) + [Vite](https://vitejs.dev/)
