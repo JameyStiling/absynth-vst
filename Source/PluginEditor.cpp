@@ -61,7 +61,9 @@ AbsynthAudioProcessorEditor::AbsynthAudioProcessorEditor (AbsynthAudioProcessor&
             .withOptionsFrom(wubFilterTypeRelay)
     );
     addAndMakeVisible (*webView);
-
+    
+    setResizable(true, true);
+    setResizeLimits(800, 500, 2000, 1600);
     setSize (1200, 780);
 
     juce::MessageManager::callAsync ([this]
