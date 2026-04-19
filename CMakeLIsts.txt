@@ -8,10 +8,10 @@ add_subdirectory(JUCE)
 
 # 3. Create the Plugin Target
 juce_add_plugin(AbsynthSynth
-    COMPANY_NAME "Absherd"
+    COMPANY_NAME "Sherd Audio"
     IS_SYNTH TRUE                 # Tells DAW this is an instrument
     NEEDS_MIDI_INPUT TRUE         # So you can play it with a keyboard
-    PRODUCT_NAME "Absynth"
+    PRODUCT_NAME "Lattice"
     PLIST_TO_MERGE "<dict><key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/><key>NSAllowsLocalNetworking</key><true/></dict></dict>"
     FORMATS VST3 Standalone       # Build format for VST3 and Standalone app
 )
