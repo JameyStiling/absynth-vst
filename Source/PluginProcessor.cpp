@@ -4,13 +4,10 @@
 //==============================================================================
 SynthVoice::SynthVoice()
 {
-    // Setup oscillator
-    osc.initialise([](float x) { return std::sin(x); }); // Default sine
-    
-    // Setup filter
+    for (int i = 0; i < 3; ++i) {
+        oscs[i].osc.initialise([](float x) { return std::sin(x); });
+    }
     filter.setMode(juce::dsp::LadderFilterMode::LPF24);
-    
-    // Gain
     gain.setGainLinear(1.0f);
 }
 
@@ -23,7 +20,9 @@ void SynthVoice::startNote(int midiNoteNumber, float velocity, juce::Synthesiser
 {
     float targetFreq = juce::MidiMessage::getMidiNoteInHertz(midiNoteNumber);
     smoothedFreq.setCurrentAndTargetValue(targetFreq);
-    osc.setFrequency(targetFreq);
+    for (int i = 0; i < 3; ++i) {
+        oscs[i].osc.setFrequency(targetFreq);
+    }
     adsr.noteOn();
 }
 
@@ -50,12 +49,14 @@ void SynthVoice::prepareToPlay(double sampleRate, int samplesPerBlock, int outpu
     spec.sampleRate = sampleRate;
     spec.numChannels = outputChannels;
 
-    osc.prepare(spec);
+    for (int i = 0; i < 3; ++i) {
+        oscs[i].osc.prepare(spec);
+    }
     filter.prepare(spec);
     gain.prepare(spec);
     
     adsr.setSampleRate(sampleRate);
-    smoothedFreq.reset(sampleRate, 0.05); // Default 50ms glide
+    smoothedFreq.reset(sampleRate, 0.05);
     
     isPrepared = true;
 }
@@ -71,25 +72,27 @@ void SynthVoice::updateADSR(const juce::ADSR::Parameters& envParams)
     adsr.setParameters(envParams);
 }
 
-void SynthVoice::updateOscType(int type)
+void SynthVoice::updateOsc(int index, bool active, int type, float level)
 {
-    if (oscType == type) return;
-    oscType = type;
+    if (index < 0 || index >= 3) return;
     
-    switch (oscType)
-    {
-        case 0: // Sine
-            osc.initialise([](float x) { return std::sin(x); });
-            break;
-        case 1: // Saw
-            osc.initialise([](float x) { return x / juce::MathConstants<float>::pi; });
-            break;
-        case 2: // Square
-            osc.initialise([](float x) { return x < 0.0f ? -1.0f : 1.0f; });
-            break;
-        default:
-            jassertfalse;
-            break;
+    oscs[index].active = active;
+    oscs[index].level = level;
+
+    if (oscs[index].type != type) {
+        oscs[index].type = type;
+        switch (type)
+        {
+            case 0: // Sine
+                oscs[index].osc.initialise([](float x) { return std::sin(x); });
+                break;
+            case 1: // Saw
+                oscs[index].osc.initialise([](float x) { return x / juce::MathConstants<float>::pi; });
+                break;
+            case 2: // Square
+                oscs[index].osc.initialise([](float x) { return x < 0.0f ? -1.0f : 1.0f; });
+                break;
+        }
     }
 }
 
@@ -118,16 +121,19 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
     synthBuffer.clear();
 
     auto numChannels = synthBuffer.getNumChannels();
-    for (int s = 0; s < numSamples; ++s)
-    {
-        if (smoothedFreq.isSmoothing())
-        {
-            osc.setFrequency(smoothedFreq.getNextValue());
-        }
-        float sample = osc.processSample(0.0f);
-        for (int ch = 0; ch < numChannels; ++ch)
-        {
-            synthBuffer.setSample(ch, s, sample);
+    float freq = smoothedFreq.getNextValue();
+
+    for (int i = 0; i < 3; ++i) {
+        if (!oscs[i].active) continue;
+        
+        oscs[i].osc.setFrequency(freq);
+        float amp = oscs[i].level;
+
+        for (int s = 0; s < numSamples; ++s) {
+            float sample = oscs[i].osc.processSample(0.0f) * amp;
+            for (int ch = 0; ch < numChannels; ++ch) {
+                synthBuffer.addSample(ch, s, sample / 3.0f); // Simple mix
+            }
         }
     }
 
@@ -137,16 +143,11 @@ void SynthVoice::renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int sta
     filter.process(context);
     gain.process(context);
 
-    // Apply ADSR
     adsr.applyEnvelopeToBuffer(synthBuffer, 0, numSamples);
 
     for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel)
     {
         outputBuffer.addFrom(channel, startSample, synthBuffer, channel, 0, numSamples);
-        if (!adsr.isActive())
-        {
-            clearCurrentNote();
-        }
     }
 }
 
@@ -194,7 +195,7 @@ void CustomSynth::noteOff(int midiChannel, int midiNoteNumber, float velocity, b
 }
 
 //==============================================================================
-AbsynthAudioProcessor::AbsynthAudioProcessor()
+LatticeAudioProcessor::LatticeAudioProcessor()
      : AudioProcessor (BusesProperties()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
        apvts (*this, nullptr, "Parameters", createParameters())
@@ -206,11 +207,11 @@ AbsynthAudioProcessor::AbsynthAudioProcessor()
     }
 }
 
-AbsynthAudioProcessor::~AbsynthAudioProcessor()
+LatticeAudioProcessor::~LatticeAudioProcessor()
 {
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout AbsynthAudioProcessor::createParameters()
+juce::AudioProcessorValueTreeState::ParameterLayout LatticeAudioProcessor::createParameters()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
@@ -222,7 +223,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout AbsynthAudioProcessor::creat
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"sustain", 1}, "Sustain", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"release", 1}, "Release", juce::NormalisableRange<float>(0.001f, 5.0f, 0.01f, 0.3f), 1.0f));
     
-    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"oscType", 1}, "Osc Type", juce::StringArray{"Sine", "Saw", "Square"}, 1));
+    // 3 Oscillators
+    for (int i = 1; i <= 3; ++i) {
+        juce::String idx = juce::String(i);
+        params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"osc" + idx + "Active", 1}, "Osc " + idx + " Active", i == 1));
+        params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"osc" + idx + "Type", 1}, "Osc " + idx + " Type", juce::StringArray{"Sine", "Saw", "Square"}, 0));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"osc" + idx + "Level", 1}, "Osc " + idx + " Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.8f));
+    }
 
     params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"legato", 1}, "Legato", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"glideTime", 1}, "Glide Time", juce::NormalisableRange<float>(0.0f, 1000.0f, 1.0f, 0.3f), 50.0f));
@@ -239,20 +246,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout AbsynthAudioProcessor::creat
 }
 
 //==============================================================================
-const juce::String AbsynthAudioProcessor::getName() const { return JucePlugin_Name; }
-bool AbsynthAudioProcessor::acceptsMidi() const { return true; }
-bool AbsynthAudioProcessor::producesMidi() const { return false; }
-bool AbsynthAudioProcessor::isMidiEffect() const { return false; }
-double AbsynthAudioProcessor::getTailLengthSeconds() const { return 0.0; }
+const juce::String LatticeAudioProcessor::getName() const { return JucePlugin_Name; }
+bool LatticeAudioProcessor::acceptsMidi() const { return true; }
+bool LatticeAudioProcessor::producesMidi() const { return false; }
+bool LatticeAudioProcessor::isMidiEffect() const { return false; }
+double LatticeAudioProcessor::getTailLengthSeconds() const { return 0.0; }
 
-int AbsynthAudioProcessor::getNumPrograms() { return 1; }
-int AbsynthAudioProcessor::getCurrentProgram() { return 0; }
-void AbsynthAudioProcessor::setCurrentProgram (int index) { juce::ignoreUnused(index); }
-const juce::String AbsynthAudioProcessor::getProgramName (int index) { juce::ignoreUnused(index); return {}; }
-void AbsynthAudioProcessor::changeProgramName (int index, const juce::String& newName) { juce::ignoreUnused(index, newName); }
+int LatticeAudioProcessor::getNumPrograms() { return 1; }
+int LatticeAudioProcessor::getCurrentProgram() { return 0; }
+void LatticeAudioProcessor::setCurrentProgram (int index) { juce::ignoreUnused(index); }
+const juce::String LatticeAudioProcessor::getProgramName (int index) { juce::ignoreUnused(index); return {}; }
+void LatticeAudioProcessor::changeProgramName (int index, const juce::String& newName) { juce::ignoreUnused(index, newName); }
 
 //==============================================================================
-void AbsynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void LatticeAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     synth.setCurrentPlaybackSampleRate(sampleRate);
     keyboardState.reset();
@@ -272,11 +279,11 @@ void AbsynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     }
 }
 
-void AbsynthAudioProcessor::releaseResources()
+void LatticeAudioProcessor::releaseResources()
 {
 }
 
-bool AbsynthAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool LatticeAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
      && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
@@ -284,7 +291,7 @@ bool AbsynthAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) 
     return true;
 }
 
-void AbsynthAudioProcessor::handleWebMidiEvent(int note, int velocity, bool isNoteOn)
+void LatticeAudioProcessor::handleWebMidiEvent(int note, int velocity, bool isNoteOn)
 {
     if (isNoteOn)
         keyboardState.noteOn(1, note, velocity / 127.0f);
@@ -292,7 +299,7 @@ void AbsynthAudioProcessor::handleWebMidiEvent(int note, int velocity, bool isNo
         keyboardState.noteOff(1, note, 0.0f);
 }
 
-void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
@@ -312,7 +319,14 @@ void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     envParams.sustain = apvts.getRawParameterValue("sustain")->load();
     envParams.release = apvts.getRawParameterValue("release")->load();
     
-    int oscType = static_cast<int>(apvts.getRawParameterValue("oscType")->load());
+    struct OscParams { bool active; int type; float level; };
+    OscParams oscP[3];
+    for (int i = 0; i < 3; ++i) {
+        juce::String idx = juce::String(i + 1);
+        oscP[i].active = apvts.getRawParameterValue("osc" + idx + "Active")->load() > 0.5f;
+        oscP[i].type = (int)apvts.getRawParameterValue("osc" + idx + "Type")->load();
+        oscP[i].level = apvts.getRawParameterValue("osc" + idx + "Level")->load();
+    }
     
     synth.isLegato = apvts.getRawParameterValue("legato")->load() > 0.5f;
     synth.glideTimeMs = apvts.getRawParameterValue("glideTime")->load();
@@ -323,7 +337,9 @@ void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         {
             voice->updateFilter(cutoff, resonance);
             voice->updateADSR(envParams);
-            voice->updateOscType(oscType);
+            for (int j = 0; j < 3; ++j) {
+                voice->updateOsc(j, oscP[j].active, oscP[j].type, oscP[j].level);
+            }
             voice->setGlideTime(synth.glideTimeMs);
         }
     }
@@ -347,22 +363,22 @@ void AbsynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
 }
 
 //==============================================================================
-bool AbsynthAudioProcessor::hasEditor() const { return true; }
+bool LatticeAudioProcessor::hasEditor() const { return true; }
 
-juce::AudioProcessorEditor* AbsynthAudioProcessor::createEditor()
+juce::AudioProcessorEditor* LatticeAudioProcessor::createEditor()
 {
-    return new AbsynthAudioProcessorEditor (*this);
+    return new LatticeAudioProcessorEditor (*this);
 }
 
 //==============================================================================
-void AbsynthAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void LatticeAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     std::unique_ptr<juce::XmlElement> xml (state.createXml());
     copyXmlToBinary (*xml, destData);
 }
 
-void AbsynthAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void LatticeAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
     if (xmlState != nullptr)
@@ -373,5 +389,5 @@ void AbsynthAudioProcessor::setStateInformation (const void* data, int sizeInByt
 //==============================================================================
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new AbsynthAudioProcessor();
+    return new LatticeAudioProcessor();
 }

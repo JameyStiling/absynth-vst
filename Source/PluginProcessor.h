@@ -18,19 +18,25 @@ public:
 
     void updateFilter(float cutoff, float resonance);
     void updateADSR(const juce::ADSR::Parameters& envParams);
-    void updateOscType(int type); // 0=Sine, 1=Saw, 2=Square
+    void updateOsc(int index, bool active, int type, float level);
 
     void setGlideTime(float glideTimeMs);
     void triggerGlide(int newNote);
 
 private:
-    juce::dsp::Oscillator<float> osc;
+    struct OscUnit {
+        juce::dsp::Oscillator<float> osc;
+        int type { 0 };
+        float level { 1.0f };
+        bool active { false };
+    };
+
+    OscUnit oscs[3];
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> smoothedFreq;
     juce::dsp::LadderFilter<float> filter;
     juce::ADSR adsr;
     juce::dsp::Gain<float> gain;
     bool isPrepared { false };
-    int oscType { 1 };
 };
 
 class SynthSound : public juce::SynthesiserSound
@@ -109,11 +115,11 @@ struct WubEngine
     }
 };
 
-class AbsynthAudioProcessor : public juce::AudioProcessor
+class LatticeAudioProcessor : public juce::AudioProcessor
 {
 public:
-    AbsynthAudioProcessor();
-    ~AbsynthAudioProcessor() override;
+    LatticeAudioProcessor();
+    ~LatticeAudioProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -153,5 +159,5 @@ private:
     CustomSynth synth;
     WubEngine wubEngine;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AbsynthAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LatticeAudioProcessor)
 };

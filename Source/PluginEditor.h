@@ -3,19 +3,19 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 
-class AbsynthAudioProcessor;
+class LatticeAudioProcessor;
 
-class AbsynthAudioProcessorEditor final : public juce::AudioProcessorEditor
+class LatticeAudioProcessorEditor final : public juce::AudioProcessorEditor
 {
 public:
-    explicit AbsynthAudioProcessorEditor (AbsynthAudioProcessor&);
-    ~AbsynthAudioProcessorEditor() override;
+    explicit LatticeAudioProcessorEditor (LatticeAudioProcessor&);
+    ~LatticeAudioProcessorEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
-    AbsynthAudioProcessor& processorRef;
+    LatticeAudioProcessor& processorRef;
 
     juce::WebSliderRelay cutoffRelay { "cutoff" };
     juce::WebSliderRelay resonanceRelay { "resonance" };
@@ -55,5 +55,5 @@ private:
 
     std::unique_ptr<juce::WebBrowserComponent> webView;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AbsynthAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LatticeAudioProcessorEditor)
 };

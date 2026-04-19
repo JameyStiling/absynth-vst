@@ -7,7 +7,7 @@ constexpr const char* absynthUiDevServerURL = "http://localhost:5173";
 }
 
 //==============================================================================
-AbsynthAudioProcessorEditor::AbsynthAudioProcessorEditor (AbsynthAudioProcessor& p)
+LatticeAudioProcessorEditor::LatticeAudioProcessorEditor (LatticeAudioProcessor& p)
     : AudioProcessorEditor (p), processorRef (p)
 {
     // Initialize parameter attachments
@@ -73,17 +73,17 @@ AbsynthAudioProcessorEditor::AbsynthAudioProcessorEditor (AbsynthAudioProcessor&
                                      });
 }
 
-AbsynthAudioProcessorEditor::~AbsynthAudioProcessorEditor()
+LatticeAudioProcessorEditor::~LatticeAudioProcessorEditor()
 {
 }
 
 //==============================================================================
-void AbsynthAudioProcessorEditor::paint (juce::Graphics& g)
+void LatticeAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
 }
 
-void AbsynthAudioProcessorEditor::resized()
+void LatticeAudioProcessorEditor::resized()
 {
     if (webView != nullptr)
         webView->setBounds (getLocalBounds());

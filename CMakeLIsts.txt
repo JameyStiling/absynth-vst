@@ -9,6 +9,7 @@ add_subdirectory(JUCE)
 # 3. Create the Plugin Target
 juce_add_plugin(Lattice
     COMPANY_NAME "Sherd Audio"
+    BUNDLE_ID "com.sherdaudio.lattice"
     IS_SYNTH TRUE                 # Tells DAW this is an instrument
     NEEDS_MIDI_INPUT TRUE         # So you can play it with a keyboard
     PRODUCT_NAME "Lattice"
