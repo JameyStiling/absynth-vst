@@ -62,7 +62,7 @@ AbsynthAudioProcessorEditor::AbsynthAudioProcessorEditor (AbsynthAudioProcessor&
     );
     addAndMakeVisible (*webView);
 
-    setSize (800, 600);
+    setSize (1200, 780);
 
     juce::MessageManager::callAsync ([this]
                                      {
