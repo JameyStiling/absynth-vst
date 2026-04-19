@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.22)
 
 # 1. Initialize the Project
-project(AbsynthSynth VERSION 0.0.1)
+project(Lattice VERSION 0.0.1)
 
 # 2. Include JUCE
 add_subdirectory(JUCE)
 
 # 3. Create the Plugin Target
-juce_add_plugin(AbsynthSynth
+juce_add_plugin(Lattice
     COMPANY_NAME "Sherd Audio"
     IS_SYNTH TRUE                 # Tells DAW this is an instrument
     NEEDS_MIDI_INPUT TRUE         # So you can play it with a keyboard
@@ -20,13 +20,13 @@ juce_add_plugin(AbsynthSynth
 add_definitions(-DJUCE_IGNORE_VST3_MISMATCHED_PARAMETER_ID_WARNING)
 
 # 4. Link your C++ files
-target_sources(AbsynthSynth PRIVATE
+target_sources(Lattice PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
 )
 
 # 5. Link JUCE Modules (The Web View is essential here!)
-target_link_libraries(AbsynthSynth PRIVATE
+target_link_libraries(Lattice PRIVATE
     juce::juce_audio_utils
     juce::juce_gui_extra          # This holds the WebBridge logic
     juce::juce_dsp                # subtractive synth math
@@ -34,10 +34,10 @@ target_link_libraries(AbsynthSynth PRIVATE
 
 # 6. Bypass macOS App Transport Security for the Standalone App
 if (APPLE)
-    add_custom_command(TARGET AbsynthSynth_Standalone POST_BUILD
-        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$<TARGET_FILE_DIR:AbsynthSynth_Standalone>/../Info.plist" || true
-        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$<TARGET_FILE_DIR:AbsynthSynth_Standalone>/../Info.plist" || true
-        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$<TARGET_FILE_DIR:AbsynthSynth_Standalone>/../Info.plist" || true
+    add_custom_command(TARGET Lattice_Standalone POST_BUILD
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$<TARGET_FILE_DIR:Lattice_Standalone>/../Info.plist" || true
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$<TARGET_FILE_DIR:Lattice_Standalone>/../Info.plist" || true
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$<TARGET_FILE_DIR:Lattice_Standalone>/../Info.plist" || true
         COMMENT "Adding App Transport Security exceptions to Standalone App Info.plist"
     )
 endif()
