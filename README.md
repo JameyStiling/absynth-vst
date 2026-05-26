@@ -29,7 +29,7 @@ Recommended: build from the parent **`absynth`** monorepo when available (`npm r
 Source/
   PluginProcessor.*   DSP, APVTS, voices, mod/arp
   PluginEditor.*      WebView host, relays, native functions
-JUCE/                 Vendored JUCE (submodule or copy)
+JUCE/                 Vendored JUCE (local copy; not in git — run `scripts/fetch-juce.sh` if missing)
 CMakeLIsts.txt
 PARAMETERS.md         Parameter ID reference
 ```

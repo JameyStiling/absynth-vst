@@ -33,8 +33,14 @@ jobs:
       - name: Install build tools
         run: brew install cmake ninja
 
-      - name: Link JUCE for UI install (monorepo path layout)
-        run: mkdir -p absynth-vst && ln -sf "${{ github.workspace }}/JUCE" absynth-vst/JUCE
+      - name: Fetch JUCE (not in git — see .gitignore)
+        run: bash scripts/fetch-juce.sh
+
+      - name: Link JUCE for UI npm file dependency
+        run: |
+          mkdir -p absynth-vst
+          ln -sfn "${{ github.workspace }}/JUCE" absynth-vst/JUCE
+          test -f absynth-vst/JUCE/modules/juce_gui_extra/native/javascript/package.json
 
       - name: Build UI bundle
         working-directory: absynth-ui
@@ -44,7 +50,10 @@ jobs:
           node --version
           npm --version
           npm ci --no-fund --no-audit
+          test -d node_modules/juce-framework-frontend
           npm run build-plugin
+          test -f dist/index.html
+          wc -c dist/index.html
 
       - name: Build native targets
         run: |
