@@ -219,6 +219,7 @@ public:
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
     void handleWebMidiEvent(int note, int velocity, bool isNoteOn);
+    juce::var getActiveMidiNotesForUi() const;
     juce::MidiKeyboardState keyboardState;
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
@@ -257,6 +258,13 @@ private:
     Arpeggiator arpeggiator;
 
     void processArpeggiator(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages, juce::AudioPlayHead* playHead);
+
+    int getMidiChannelFilter() const;
+    void refreshActiveNotesSnapshot();
+    juce::MidiBuffer filterMidiByChannel (const juce::MidiBuffer& source) const;
+
+    mutable juce::CriticalSection activeNotesLock;
+    std::vector<int> activeNotesSnapshot;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LatticeAudioProcessor)
 };

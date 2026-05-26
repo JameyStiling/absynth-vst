@@ -49,6 +49,7 @@ private:
     juce::WebComboBoxRelay arpRateRelay { "arpRate" };
     juce::WebSliderRelay arpSwingRelay { "arpSwing" };
     juce::WebComboBoxRelay arpModeRelay { "arpMode" };
+    juce::WebComboBoxRelay midiChannelRelay { "midiChannel" };
 
     std::unique_ptr<juce::WebSliderParameterAttachment> attackAttachment;
     std::unique_ptr<juce::WebSliderParameterAttachment> decayAttachment;
@@ -83,11 +84,14 @@ private:
     std::unique_ptr<juce::WebComboBoxParameterAttachment> arpRateAttachment;
     std::unique_ptr<juce::WebSliderParameterAttachment> arpSwingAttachment;
     std::unique_ptr<juce::WebComboBoxParameterAttachment> arpModeAttachment;
+    std::unique_ptr<juce::WebComboBoxParameterAttachment> midiChannelAttachment;
 
     std::unique_ptr<juce::WebBrowserComponent> webView;
     bool webViewCreated { false };
+    juce::String uiLoadError;
 
     void ensureWebViewCreated();
+    bool shouldUseDevServer() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LatticeAudioProcessorEditor)
 };

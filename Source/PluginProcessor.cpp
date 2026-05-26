@@ -254,7 +254,78 @@ juce::AudioProcessorValueTreeState::ParameterLayout LatticeAudioProcessor::creat
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"arpSwing", 1}, "Arp Swing", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"arpMode", 1}, "Arp Mode", juce::StringArray{"Repeat", "Up", "Down", "Up/Dn", "As Played"}, 0));
 
+    {
+        juce::StringArray midiChannels { "Omni" };
+        for (int ch = 1; ch <= 16; ++ch)
+            midiChannels.add ("Ch " + juce::String (ch));
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "midiChannel", 1 },
+                                                                        "MIDI Channel",
+                                                                        midiChannels,
+                                                                        0));
+    }
+
     return { params.begin(), params.end() };
+}
+
+int LatticeAudioProcessor::getMidiChannelFilter() const
+{
+    return (int) apvts.getRawParameterValue ("midiChannel")->load();
+}
+
+juce::MidiBuffer LatticeAudioProcessor::filterMidiByChannel (const juce::MidiBuffer& source) const
+{
+    const int channel = getMidiChannelFilter();
+    if (channel <= 0)
+        return source;
+
+    juce::MidiBuffer filtered;
+    for (const auto metadata : source)
+    {
+        const auto msg = metadata.getMessage();
+        if (msg.getChannel() == channel)
+            filtered.addEvent (msg, metadata.samplePosition);
+    }
+    return filtered;
+}
+
+void LatticeAudioProcessor::refreshActiveNotesSnapshot()
+{
+    const int channel = getMidiChannelFilter();
+    std::vector<int> notes;
+    notes.reserve (16);
+
+    for (int note = 0; note < 128; ++note)
+    {
+        bool isOn = false;
+
+        if (channel <= 0)
+        {
+            for (int ch = 1; ch <= 16 && ! isOn; ++ch)
+                isOn = keyboardState.isNoteOn (ch, note);
+        }
+        else
+        {
+            isOn = keyboardState.isNoteOn (channel, note);
+        }
+
+        if (isOn)
+            notes.push_back (note);
+    }
+
+    const juce::ScopedLock lock (activeNotesLock);
+    activeNotesSnapshot = std::move (notes);
+}
+
+juce::var LatticeAudioProcessor::getActiveMidiNotesForUi() const
+{
+    const juce::ScopedLock lock (activeNotesLock);
+    juce::Array<juce::var> result;
+    result.ensureStorageAllocated ((int) activeNotesSnapshot.size());
+
+    for (int note : activeNotesSnapshot)
+        result.add (note);
+
+    return result;
 }
 
 //==============================================================================
@@ -320,8 +391,9 @@ void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(), true);
-    
+    auto channelMidi = filterMidiByChannel (midiMessages);
+    keyboardState.processNextMidiBuffer (channelMidi, 0, buffer.getNumSamples(), true);
+
     juce::ADSR::Parameters envParams;
     envParams.attack = apvts.getRawParameterValue("attack")->load();
     envParams.decay = apvts.getRawParameterValue("decay")->load();
@@ -356,8 +428,8 @@ void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         }
     }
 
-    processArpeggiator(buffer, midiMessages, getPlayHead());
-    synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
+    processArpeggiator (buffer, channelMidi, getPlayHead());
+    synth.renderNextBlock (buffer, channelMidi, 0, buffer.getNumSamples());
 
     // Apply LFO/DRAW filter modulation post-synth
     bool modEnabled = apvts.getRawParameterValue("modEnabled")->load() > 0.5f;
@@ -384,6 +456,8 @@ void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         float drawVal = modDrawValue.load();
         modEngine.process(buffer, modRate, modDepth, modCenter, isDraw, drawVal, modDepthMode, modPolarity);
     }
+
+    refreshActiveNotesSnapshot();
 }
 
 void LatticeAudioProcessor::processArpeggiator(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages, juce::AudioPlayHead* playHead)

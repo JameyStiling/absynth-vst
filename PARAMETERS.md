@@ -199,7 +199,16 @@ Adds a resonant peak at the wub filter's current cutoff frequency, following it 
 
 ## 🎛 Virtual Keyboard
 
-A drag-to-play chromatic keyboard spanning one octave (C–B).
+A drag-to-play chromatic keyboard spanning two octaves.
+
+### MIDI In (Channel)
+
+| Setting | Description |
+|---------|-------------|
+| **Omni** | Respond to MIDI on all channels (default). |
+| **Ch 1–16** | Only notes on the selected channel trigger audio and UI feedback. |
+
+In a DAW, route the track’s MIDI channel to match this setting. Keys pressed on the on-screen keyboard always use the internal bridge; **DAW / external MIDI** keys light in **violet**, on-screen keys in **cyan**.
 
 ### Playing Notes
 
