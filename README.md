@@ -1,172 +1,151 @@
-# ABSYNTH
+# Lattice VST (absynth-vst)
 
-> A JUCE 8 subtractive synthesizer with a Vue 3 WebView UI, playable virtual keyboard, legato/portamento engine, and LFO-driven wub generator.
+JUCE 8 instrument: subtractive synth DSP with a Vue 3 UI in `WKWebView`, VST3 + Standalone on macOS.
 
----
-
-## Overview
-
-**Absynth** is a standalone synthesizer and VST3/AU plugin built on the [JUCE](https://juce.com/) framework. Its entire user interface is a Vue 3 web application running inside a `WKWebView`, communicating with the C++ DSP engine through JUCE 8's native WebView bridge. The result is a fully reactive, hot-reloadable synth UI tightly coupled to a high-performance audio engine.
+Companion repo: [absynth-ui](https://github.com/JameyStiling/absynth-ui).  
+Recommended: build from the parent **`absynth`** monorepo when available (`npm run build:vst3` at repo root).
 
 ---
 
-## Feature Summary
+## Features
 
 | Module | Description |
 |--------|-------------|
-| **Oscillator** | Sine, Sawtooth, or Square wave with MIDI note pitch tracking |
-| **Filter** | 24dB/oct Ladder Filter with Cutoff & Resonance |
-| **Envelope (ADSR)** | Attack, Decay, Sustain, Release amplitude envelope |
-| **Legato / Portamento** | Monophonic legato mode with sample-accurate pitch glide |
-| **Wub Generator** | LFO → filter modulation (LPF or BPF) for dubstep-style wub effects |
-| **Virtual Keyboard** | Drag-to-play chromatic keyboard with octave selection |
+| **Oscillators** | Three independent sine / saw / square sources |
+| **Filter** | Per-voice ladder filter (cutoff, resonance) |
+| **ADSR** | Amplitude envelope |
+| **Legato / glide** | Monophonic legato with smoothed pitch |
+| **Mod engine** | LFO or MSEG-draw filter modulation |
+| **Arpeggiator** | Rate, swing, modes |
+| **UI** | Embedded web UI via JUCE `WebBrowserComponent` + native integration |
 
 ---
 
-## Architecture
+## Layout
 
 ```
-absynth-vst/                   ← This repo (C++ / JUCE)
-│
-├── Source/
-│   ├── PluginProcessor.h/.cpp ← DSP engine (synth voices, wub LFO, ADSR, filter)
-│   └── PluginEditor.h/.cpp    ← WebView host + JS↔C++ parameter bridge
-│
-└── JUCE/                      ← JUCE framework (git submodule)
-
-absynth-ui/                    ← Companion repo (Vue 3 / TypeScript)
-│
-└── src/
-    ├── App.vue                ← Root layout (all synth sections)
-    ├── components/
-    │   ├── JuceKnob.vue       ← Rotary knob bound to JUCE SliderRelay
-    │   ├── JuceSelect.vue     ← Dropdown bound to JUCE ComboBoxRelay
-    │   ├── JuceToggle.vue     ← Toggle switch bound to JUCE ToggleButtonRelay
-    │   └── VirtualKeyboard.vue← Chromatic keyboard → sendMidiNote native bridge
-    └── vite.config.ts         ← Vite config (HMR dev server on localhost:5173)
+Source/
+  PluginProcessor.*   DSP, APVTS, voices, mod/arp
+  PluginEditor.*      WebView host, relays, native functions
+JUCE/                 Vendored JUCE (submodule or copy)
+CMakeLIsts.txt
+PARAMETERS.md         Parameter ID reference
 ```
-
-### JS ↔ C++ Bridge
-
-JUCE 8's `WebBrowserComponent` exposes two-way communication channels:
-
-- **Parameters** (knobs, selects, toggles) use `WebSliderRelay`, `WebComboBoxRelay`, and `WebToggleButtonRelay` on the C++ side, paired with `juce-framework-frontend` hooks on the Vue side. Changes flow in both directions automatically.
-- **MIDI** is sent from JS to C++ via a registered native function: `window.__JUCE__.backend.sendMidiNote(note, velocity, isNoteOn)`. In Vue this is called through `Juce.getNativeFunction("sendMidiNote")`.
 
 ---
 
-## Building
-
-### Prerequisites
+## Prerequisites
 
 | Tool | Install |
 |------|---------|
 | CMake ≥ 3.22 | `brew install cmake` |
 | Ninja | `brew install ninja` |
 | Xcode CLT | `xcode-select --install` |
-| Node.js ≥ 18 | [nodejs.org](https://nodejs.org) |
+| Node.js ≥ 20 | For UI bundle (monorepo builds UI first) |
 
-Initialize JUCE submodule:
+---
 
-```bash
-git submodule update --init --recursive
-```
-
-### Configure & Build
+## Build (this repo alone)
 
 ```bash
-# Configure
+# UI bundle must exist first — from absynth-ui:
+#   npm run build-plugin
+
 cmake . -B build -G Ninja -DJUCE_BUILD_EXAMPLES=OFF
-
-# Build all targets (Standalone + VST3)
 cmake --build build --parallel 8
 ```
 
 Outputs:
-- **Standalone**: `build/AbsynthSynth_artefacts/Standalone/Absynth.app`
-- **VST3**: `build/AbsynthSynth_artefacts/VST3/Absynth.vst3`
 
-### Running with Live UI (Development)
+- **Standalone:** `build/Lattice_artefacts/Standalone/Lattice.app`
+- **VST3:** `build/Lattice_artefacts/VST3/Lattice.vst3`
 
-Start the Vue dev server in the `absynth-ui` repo first:
-
-```bash
-cd ../absynth-ui
-npm install
-npm run dev        # → http://localhost:5173
-```
-
-Then launch the standalone app:
+Copy UI into the bundle before shipping:
 
 ```bash
-open build/AbsynthSynth_artefacts/Standalone/Absynth.app
-```
-
-The standalone loads `http://localhost:5173` inside its WebView. Vite HMR means any UI change is reflected instantly — no rebuild required.
-
-### Install as Plugin
-
-Copy the built plugin to your system plugin directory:
-
-```bash
-# VST3
-cp -r build/AbsynthSynth_artefacts/VST3/Absynth.vst3 /Library/Audio/Plug-Ins/VST3/
-
-# AU
-cp -r build/AbsynthSynth_artefacts/AU/Absynth.component /Library/Audio/Plug-Ins/Components/
-```
-
-Rescan plugins in your DAW.
-
----
-
-## Signal Chain
-
-```
-MIDI Input (keyboard / DAW)
-        │
-        ▼
-  MidiKeyboardState  ──────────────────── Virtual Keyboard (JS → C++)
-        │
-        ▼
-  CustomSynth (juce::Synthesiser)
-  ┌─────────────────────────┐
-  │  SynthVoice (×4)        │
-  │   Oscillator (osc type) │
-  │   → SmoothedFreq (glide)│
-  │   → LadderFilter (LPF24)│
-  │   → Gain                │
-  │   → ADSR envelope       │
-  └─────────────────────────┘
-        │
-        ▼  (mixed stereo bus)
-  WubEngine (global post-FX)
-   LFO → LadderFilter (LPF or BPF)
-        │
-        ▼
-   Audio Output
+# From monorepo (preferred):
+../scripts/copy-ui-bundle.sh
 ```
 
 ---
 
-## Parameter Reference
+## Monorepo workflow (recommended)
 
-See [`PARAMETERS.md`](./PARAMETERS.md) for a full description of every knob, toggle, and selector.
+From `absynth` root:
+
+```bash
+npm run setup
+npm run build:vst3
+```
+
+This will:
+
+1. Build `Lattice.vst3` / `Lattice.app`
+2. Run `build-plugin` in `absynth-ui` (single-file HTML)
+3. Embed UI under `Contents/Resources/ui`
+4. Install to `~/Library/Audio/Plug-Ins/VST3/Lattice.vst3` and ad-hoc sign
+
+### Bitwig
+
+1. Run `npm run build:vst3` from the monorepo.
+2. **Settings → Locations → Plug-ins** — use `~/Library/Audio/Plug-Ins/VST3`; remove broad **Documents** scan paths.
+3. Rescan; load Lattice from the Library path.
+4. Quit and reopen Bitwig if the UI was cached.
+
+**Standalone dev:** UI loads `http://localhost:5173` (run `npm run dev` in monorepo).  
+**VST3 in a DAW:** UI loads from embedded `Resources/ui` via JUCE resource provider (not localhost).
 
 ---
 
-## Development Notes
+## Development (Standalone + live UI)
 
-- The `CMakeLists.txt` post-build step injects `NSAppTransportSecurity` into the Standalone `Info.plist` to allow the WebView to connect to `http://localhost:5173`.
-- The Vue dev server **must** run on `localhost` (not `127.0.0.1`) for JUCE's WKWebView security context to treat it as a secure origin.
-- `vueDevTools()` is disabled in `vite.config.ts` — it crashes WKWebView on macOS.
+Terminal 1 — UI (monorepo or `absynth-ui`):
+
+```bash
+npm run dev
+```
+
+Terminal 2 — open app after native build:
+
+```bash
+open build/Lattice_artefacts/Standalone/Lattice.app
+```
+
+`CMakeLists.txt` adds App Transport Security exceptions so the Standalone WebView can reach `http://localhost:5173`.
+
+---
+
+## UI hosting (C++)
+
+`PluginEditor` registers:
+
+- `WebSliderRelay` / attachments for APVTS parameters
+- Native functions: `sendMidiNote`, `sendModDrawState`
+- Resource provider serving files from `Contents/Resources/ui`
+- Standalone: `goToURL("http://localhost:5173")`
+- Plugin: `goToURL(getResourceProviderRoot())` with on-disk bundle (resolved via plugin binary path / bundle ID)
+
+---
+
+## Signal chain
+
+```
+MIDI → MidiKeyboardState → CustomSynth (voices: osc → filter → ADSR)
+      → ModEngine (bus filter) → output
+```
+
+See [`PARAMETERS.md`](./PARAMETERS.md) for every parameter ID.
+
+---
+
+## Development notes
+
+- Product name in CMake: **Lattice** (`com.sherdaudio.lattice`).
+- `JUCE_WEB_BROWSER=1` is set on the target.
+- Do not enable Vue devtools in the UI project when targeting WKWebView.
 
 ---
 
 ## License
 
-MIT — see `LICENSE` for details.
-
-## Acknowledgments
-
-Built with [JUCE](https://juce.com/) · UI powered by [Vue 3](https://vuejs.org/) + [Vite](https://vitejs.dev/)
+MIT — see `LICENSE` if present.
