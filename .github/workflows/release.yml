@@ -1,0 +1,81 @@
+# Release macOS demo zips from this repo + absynth-ui (matches lattice-landing download URL).
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos-release:
+    runs-on: macos-14
+    steps:
+      - name: Checkout VST
+        uses: actions/checkout@v4
+
+      - name: Checkout UI
+        uses: actions/checkout@v4
+        with:
+          repository: JameyStiling/absynth-ui
+          path: absynth-ui
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: absynth-ui/package-lock.json
+
+      - name: Install build tools
+        run: brew install cmake ninja
+
+      - name: Link JUCE for UI install (monorepo path layout)
+        run: mkdir -p absynth-vst && ln -sf "${{ github.workspace }}/JUCE" absynth-vst/JUCE
+
+      - name: Build UI bundle
+        working-directory: absynth-ui
+        run: |
+          npm ci
+          npm run build-plugin
+
+      - name: Build native targets
+        run: |
+          cmake . -B build -G Ninja -DJUCE_BUILD_EXAMPLES=OFF
+          cmake --build build --parallel 8
+
+      - name: Embed UI into bundles
+        run: |
+          UI_DIST="${{ github.workspace }}/absynth-ui/dist"
+          for dest in \
+            "build/Lattice_artefacts/VST3/Lattice.vst3/Contents/Resources/ui" \
+            "build/Lattice_artefacts/Standalone/Lattice.app/Contents/Resources/ui"; do
+            rm -rf "$dest"
+            mkdir -p "$dest"
+            cp -R "$UI_DIST/." "$dest/"
+          done
+
+      - name: Package and sign zips
+        run: |
+          set -euo pipefail
+          APP="build/Lattice_artefacts/Standalone/Lattice.app"
+          VST3="build/Lattice_artefacts/VST3/Lattice.vst3"
+          mkdir -p dist
+          xattr -cr "$APP" "$VST3" 2>/dev/null || true
+          codesign --force --deep --sign - "$APP"
+          codesign --force --deep --sign - "$VST3"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" dist/Lattice_Demo_Mac.zip
+          (cd build/Lattice_artefacts/VST3 && ditto -c -k --sequesterRsrc --keepParent Lattice.vst3 "${{ github.workspace }}/dist/Lattice_VST3_Mac.zip")
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Lattice_Demo_Mac.zip
+            dist/Lattice_VST3_Mac.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

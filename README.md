@@ -5,6 +5,8 @@ JUCE 8 instrument: subtractive synth DSP with a Vue 3 UI in `WKWebView`, VST3 + 
 Companion repo: [absynth-ui](https://github.com/JameyStiling/absynth-ui).  
 Recommended: build from the parent **`absynth`** monorepo when available (`npm run build:vst3` at repo root).
 
+**Public demo downloads** (landing page zip): package and publish from the monorepo — see [`../RELEASE.md`](../RELEASE.md) (`npm run package:demo`, GitHub Actions on `v*` tags).
+
 ---
 
 ## Features
