@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 #include <juce_audio_devices/juce_audio_devices.h>
+#include "LatticeModule.h"
 
 class SynthVoice : public juce::SynthesiserVoice
 {
@@ -256,6 +257,7 @@ private:
     CustomSynth synth;
     ModEngine modEngine;
     Arpeggiator arpeggiator;
+    std::vector<std::unique_ptr<LatticeModule>> modules;
 
     void processArpeggiator(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages, juce::AudioPlayHead* playHead);
 

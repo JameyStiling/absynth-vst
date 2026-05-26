@@ -1,6 +1,10 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#ifdef LATTICE_HAS_MODULES
+#include <LatticeModules.h>
+#endif
+
 //==============================================================================
 SynthVoice::SynthVoice()
 {
@@ -205,6 +209,10 @@ LatticeAudioProcessor::LatticeAudioProcessor()
     {
         synth.addVoice(new SynthVoice());
     }
+
+    #ifdef LATTICE_HAS_MODULES
+    modules = createLatticeModules();
+    #endif
 }
 
 LatticeAudioProcessor::~LatticeAudioProcessor()
@@ -263,6 +271,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout LatticeAudioProcessor::creat
                                                                         midiChannels,
                                                                         0));
     }
+
+    #ifdef LATTICE_HAS_MODULES
+    {
+        auto tempModules = createLatticeModules();
+        for (auto& module : tempModules)
+        {
+            module->addParameters(params);
+        }
+    }
+    #endif
 
     return { params.begin(), params.end() };
 }
@@ -360,6 +378,14 @@ void LatticeAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
             voice->prepareToPlay(sampleRate, samplesPerBlock, getTotalNumOutputChannels());
         }
     }
+
+    #ifdef LATTICE_HAS_MODULES
+    for (auto& module : modules)
+    {
+        module->prepare(spec);
+        module->updateFromAPVTS(apvts);
+    }
+    #endif
 }
 
 void LatticeAudioProcessor::releaseResources()
@@ -456,6 +482,14 @@ void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         float drawVal = modDrawValue.load();
         modEngine.process(buffer, modRate, modDepth, modCenter, isDraw, drawVal, modDepthMode, modPolarity);
     }
+
+    #ifdef LATTICE_HAS_MODULES
+    for (auto& module : modules)
+    {
+        module->updateFromAPVTS(apvts);
+        module->process(buffer);
+    }
+    #endif
 
     refreshActiveNotesSnapshot();
 }

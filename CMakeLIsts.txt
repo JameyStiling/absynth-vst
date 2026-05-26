@@ -33,6 +33,17 @@ target_link_libraries(Lattice PRIVATE
     juce::juce_dsp                # subtractive synth math
 )
 
+# 5.5 Optional Paid Expansion Modules
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../lattice-modules")
+    message(STATUS "Lattice: Found sibling lattice-modules directory, integrating modules...")
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../lattice-modules" "${CMAKE_CURRENT_BINARY_DIR}/lattice-modules")
+    target_link_libraries(Lattice PRIVATE lattice_modules)
+    target_compile_definitions(Lattice PRIVATE LATTICE_HAS_MODULES=1)
+    target_include_directories(Lattice PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../lattice-modules")
+else()
+    message(STATUS "Lattice: Sibling lattice-modules directory not found, building without expansion modules.")
+endif()
+
 target_compile_definitions(Lattice PUBLIC JUCE_WEB_BROWSER=1)
 
 # 6. Bypass macOS App Transport Security for the Standalone App
