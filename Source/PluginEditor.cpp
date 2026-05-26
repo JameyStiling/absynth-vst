@@ -1,9 +1,127 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <cstring>
+
+#if JUCE_MAC
+ #include <CoreFoundation/CoreFoundation.h>
+ #include <dlfcn.h>
+ #include <limits.h>
+#endif
+
 namespace
 {
-constexpr const char* absynthUiDevServerURL = "http://localhost:5173";
+constexpr const char* kDevServerURL = "http://localhost:5173";
+
+juce::File getBundledUiRoot()
+{
+    auto resourcesUiFromBundleRoot = [] (const juce::File& bundleRoot) -> juce::File
+    {
+        const auto direct = bundleRoot.getChildFile ("Resources").getChildFile ("ui");
+        if (direct.isDirectory())
+            return direct;
+
+        return bundleRoot.getChildFile ("Contents")
+                         .getChildFile ("Resources")
+                         .getChildFile ("ui");
+    };
+
+#if JUCE_MAC
+    // In a DAW, the "main bundle" is the host app (Bitwig), not the plugin.
+    // Find the plugin binary via dladdr() and walk up to the .vst3 bundle root.
+    {
+        Dl_info info {};
+        if (dladdr (reinterpret_cast<const void*> (&getBundledUiRoot), &info) != 0 && info.dli_fname != nullptr)
+        {
+            auto dir = juce::File { juce::String::fromUTF8 (info.dli_fname) };
+
+            for (int depth = 0; depth < 12 && dir.exists(); ++depth)
+            {
+                if (dir.getFileExtension() == ".vst3" || dir.getFileExtension() == ".app")
+                {
+                    const auto uiDir = resourcesUiFromBundleRoot (dir);
+                    if (uiDir.isDirectory())
+                        return uiDir;
+                }
+
+                dir = dir.getParentDirectory();
+            }
+        }
+    }
+#endif
+
+    auto dir = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+
+    for (int depth = 0; depth < 8 && dir.exists(); ++depth)
+    {
+        const auto uiDir = resourcesUiFromBundleRoot (dir);
+
+        if (uiDir.isDirectory())
+            return uiDir;
+
+        if (dir.getFileExtension() == ".vst3")
+        {
+            const auto nested = resourcesUiFromBundleRoot (dir);
+            if (nested.isDirectory())
+                return nested;
+        }
+
+        dir = dir.getParentDirectory();
+    }
+
+    return {};
+}
+
+juce::String mimeTypeForExtension (const juce::String& extension)
+{
+    if (extension == ".html" || extension == ".htm") return "text/html";
+    if (extension == ".js" || extension == ".mjs") return "application/javascript";
+    if (extension == ".css") return "text/css";
+    if (extension == ".svg") return "image/svg+xml";
+    if (extension == ".json") return "application/json";
+    if (extension == ".png") return "image/png";
+    if (extension == ".woff2") return "font/woff2";
+    if (extension == ".woff") return "font/woff";
+    if (extension == ".ttf") return "font/ttf";
+    return "application/octet-stream";
+}
+
+std::optional<juce::WebBrowserComponent::Resource> loadBundledResource (const juce::String& path)
+{
+    const auto uiRoot = getBundledUiRoot();
+    if (! uiRoot.isDirectory())
+        return std::nullopt;
+
+    auto relativePath = path;
+    if (relativePath.isEmpty() || relativePath == "/")
+        relativePath = "index.html";
+    else if (relativePath.startsWithChar ('/'))
+        relativePath = relativePath.substring (1);
+
+    auto file = uiRoot.getChildFile (relativePath);
+    if (! file.existsAsFile())
+        return std::nullopt;
+
+    juce::MemoryBlock data;
+    if (! file.loadFileAsData (data))
+        return std::nullopt;
+
+    juce::WebBrowserComponent::Resource resource;
+    resource.mimeType = mimeTypeForExtension (file.getFileExtension());
+    resource.data.resize (data.getSize());
+    std::memcpy (resource.data.data(), data.getData(), data.getSize());
+    return resource;
+}
+
+juce::String getUiLoadURL()
+{
+#if JucePlugin_Build_Standalone
+    return kDevServerURL;
+#else
+    // In a DAW, never use the Vite dev server — only the embedded bundle.
+    return juce::WebBrowserComponent::getResourceProviderRoot();
+#endif
+}
 }
 
 //==============================================================================
@@ -44,9 +162,23 @@ LatticeAudioProcessorEditor::LatticeAudioProcessorEditor (LatticeAudioProcessor&
     arpSwingAttachment   = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("arpSwing"),   arpSwingRelay,   processorRef.apvts.undoManager);
     arpModeAttachment    = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("arpMode"),    arpModeRelay,    processorRef.apvts.undoManager);
 
+    setResizable (true, true);
+    setResizeLimits (800, 500, 2000, 1600);
+    setSize (1200, 1000);
+}
+
+void LatticeAudioProcessorEditor::ensureWebViewCreated()
+{
+    if (webViewCreated)
+        return;
+
+    webViewCreated = true;
+
     webView = std::make_unique<juce::WebBrowserComponent> (
         juce::WebBrowserComponent::Options{}
             .withKeepPageLoadedWhenBrowserIsHidden()
+            .withAppleWkWebViewOptions (
+                juce::WebBrowserComponent::Options::AppleWkWebView{}.withAllowAccessToEnclosingDirectory (true))
             .withNativeIntegrationEnabled()
             .withNativeFunction("sendMidiNote", [this] (const juce::Array<juce::var>& args, juce::WebBrowserComponent::NativeFunctionCompletion completion)
             {
@@ -70,7 +202,11 @@ LatticeAudioProcessorEditor::LatticeAudioProcessorEditor (LatticeAudioProcessor&
                 }
                 completion (juce::var());
             })
-            .withResourceProvider ([] (const auto&) { return std::nullopt; }, absynthUiDevServerURL)
+            .withResourceProvider ([] (const juce::String& path)
+            {
+                return loadBundledResource (path);
+            },
+            kDevServerURL)
             .withOptionsFrom(attackRelay)
             .withOptionsFrom(decayRelay)
             .withOptionsFrom(sustainRelay)
@@ -103,16 +239,12 @@ LatticeAudioProcessorEditor::LatticeAudioProcessorEditor (LatticeAudioProcessor&
             .withOptionsFrom(arpModeRelay)
     );
     addAndMakeVisible (*webView);
-    
-    setResizable(true, true);
-    setResizeLimits(800, 500, 2000, 1600);
-    setSize (1200, 1000);
 
     juce::MessageManager::callAsync ([this]
-                                     {
-                                         if (webView != nullptr)
-                                             webView->goToURL (absynthUiDevServerURL);
-                                     });
+    {
+        if (webView != nullptr)
+            webView->goToURL (getUiLoadURL());
+    });
 }
 
 LatticeAudioProcessorEditor::~LatticeAudioProcessorEditor()
@@ -127,6 +259,8 @@ void LatticeAudioProcessorEditor::paint (juce::Graphics& g)
 
 void LatticeAudioProcessorEditor::resized()
 {
+    ensureWebViewCreated();
+
     if (webView != nullptr)
         webView->setBounds (getLocalBounds());
 }

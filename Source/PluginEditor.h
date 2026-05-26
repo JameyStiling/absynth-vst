@@ -85,6 +85,9 @@ private:
     std::unique_ptr<juce::WebComboBoxParameterAttachment> arpModeAttachment;
 
     std::unique_ptr<juce::WebBrowserComponent> webView;
+    bool webViewCreated { false };
+
+    void ensureWebViewCreated();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LatticeAudioProcessorEditor)
 };

@@ -33,8 +33,17 @@ target_link_libraries(Lattice PRIVATE
     juce::juce_dsp                # subtractive synth math
 )
 
+target_compile_definitions(Lattice PUBLIC JUCE_WEB_BROWSER=1)
+
 # 6. Bypass macOS App Transport Security for the Standalone App
 if (APPLE)
+    add_custom_command(TARGET Lattice_VST3 POST_BUILD
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$<TARGET_FILE_DIR:Lattice_VST3>/../Info.plist" || true
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$<TARGET_FILE_DIR:Lattice_VST3>/../Info.plist" || true
+        COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$<TARGET_FILE_DIR:Lattice_VST3>/../Info.plist" || true
+        COMMENT "Adding App Transport Security exceptions to VST3 Info.plist"
+    )
+
     add_custom_command(TARGET Lattice_Standalone POST_BUILD
         COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$<TARGET_FILE_DIR:Lattice_Standalone>/../Info.plist" || true
         COMMAND /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$<TARGET_FILE_DIR:Lattice_Standalone>/../Info.plist" || true
