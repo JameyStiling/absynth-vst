@@ -38,8 +38,12 @@ jobs:
 
       - name: Build UI bundle
         working-directory: absynth-ui
+        env:
+          npm_config_legacy_peer_deps: true
         run: |
-          npm ci
+          node --version
+          npm --version
+          npm ci --no-fund --no-audit
           npm run build-plugin
 
       - name: Build native targets
