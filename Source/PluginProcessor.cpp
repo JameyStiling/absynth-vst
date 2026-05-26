@@ -63,8 +63,8 @@ void SynthVoice::prepareToPlay(double sampleRate, int samplesPerBlock, int outpu
 
 void SynthVoice::updateFilter(float cutoff, float resonance)
 {
-    filter.setCutoffFrequencyHz(cutoff);
-    filter.setResonance(resonance);
+    filter.setCutoffFrequencyHz(juce::jlimit(20.0f, 20000.0f, cutoff));
+    filter.setResonance(juce::jlimit(0.0f, 1.0f, resonance));
 }
 
 void SynthVoice::updateADSR(const juce::ADSR::Parameters& envParams)
@@ -214,14 +214,16 @@ LatticeAudioProcessor::~LatticeAudioProcessor()
 juce::AudioProcessorValueTreeState::ParameterLayout LatticeAudioProcessor::createParameters()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"cutoff", 1}, "Cutoff", juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f), 2000.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"resonance", 1}, "Resonance", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.1f));
     
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"attack", 1}, "Attack", juce::NormalisableRange<float>(0.001f, 5.0f, 0.01f, 0.3f), 0.01f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"decay", 1}, "Decay", juce::NormalisableRange<float>(0.001f, 5.0f, 0.01f, 0.3f), 0.1f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"sustain", 1}, "Sustain", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"release", 1}, "Release", juce::NormalisableRange<float>(0.001f, 5.0f, 0.01f, 0.3f), 1.0f));
+
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"cutoff", 1}, "Cutoff",
+        juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f), 2000.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"resonance", 1}, "Resonance",
+        juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.1f));
     
     // 3 Oscillators
     for (int i = 1; i <= 3; ++i) {
@@ -234,13 +236,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout LatticeAudioProcessor::creat
     params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"legato", 1}, "Legato", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"glideTime", 1}, "Glide Time", juce::NormalisableRange<float>(0.0f, 1000.0f, 1.0f, 0.3f), 50.0f));
 
-    // Wub parameters
-    params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wubEnabled", 1}, "Wub Enabled", false));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wubRate", 1}, "Wub Rate", juce::NormalisableRange<float>(0.1f, 20.0f, 0.01f, 0.5f), 2.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wubDepth", 1}, "Wub Depth", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.8f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wubCenter", 1}, "Wub Center", juce::NormalisableRange<float>(100.0f, 4000.0f, 1.0f, 0.4f), 500.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"wubResonance", 1}, "Wub Resonance", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
-    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"wubFilterType", 1}, "Wub Filter", juce::StringArray{"LPF", "BPF"}, 0));
+    // Modulation parameters
+    params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"modEnabled", 1}, "Mod Enabled", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"modRate", 1}, "Mod Rate", juce::NormalisableRange<float>(0.1f, 20.0f, 0.01f, 0.5f), 2.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"modDepth", 1}, "Mod Depth", juce::NormalisableRange<float>(0.0f, 1.0f, 0.001f), 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"modDepthMode", 1}, "Mod Depth Mode", juce::StringArray{"%", "Semi", "Oct"}, 2));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"modPolarity", 1}, "Mod Polarity", juce::StringArray{"+", "+/-"}, 1));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"modCenter", 1}, "Mod Center", juce::NormalisableRange<float>(100.0f, 4000.0f, 1.0f, 0.4f), 500.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"modResonance", 1}, "Mod Resonance", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"modFilterType", 1}, "Mod Filter", juce::StringArray{"LPF", "HPF", "BPF"}, 0));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"modSlope", 1}, "Mod Slope", juce::StringArray{"6 dB/Oct", "12 dB/Oct", "18 dB/Oct", "24 dB/Oct"}, 1));
+
+    // Arpeggiator
+    params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"arpEnabled", 1}, "Arp Enabled", false));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"arpRate", 1}, "Arp Rate", 
+        juce::StringArray{"1/4", "1/8", "1/16", "1/32", "1/4D", "1/8D", "1/16D", "1/4T", "1/8T", "1/16T"}, 1));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"arpSwing", 1}, "Arp Swing", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"arpMode", 1}, "Arp Mode", juce::StringArray{"Repeat", "Up", "Down", "Up/Dn", "As Played"}, 0));
 
     return { params.begin(), params.end() };
 }
@@ -268,7 +280,7 @@ void LatticeAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = (juce::uint32)samplesPerBlock;
     spec.numChannels = (juce::uint32)getTotalNumOutputChannels();
-    wubEngine.prepare(spec);
+    modEngine.prepare(spec);
     
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
@@ -309,9 +321,6 @@ void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         buffer.clear (i, 0, buffer.getNumSamples());
 
     keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(), true);
-
-    float cutoff = apvts.getRawParameterValue("cutoff")->load();
-    float resonance = apvts.getRawParameterValue("resonance")->load();
     
     juce::ADSR::Parameters envParams;
     envParams.attack = apvts.getRawParameterValue("attack")->load();
@@ -331,6 +340,9 @@ void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     synth.isLegato = apvts.getRawParameterValue("legato")->load() > 0.5f;
     synth.glideTimeMs = apvts.getRawParameterValue("glideTime")->load();
 
+    const float cutoff = apvts.getRawParameterValue("cutoff")->load();
+    const float resonance = apvts.getRawParameterValue("resonance")->load();
+
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
         if (auto voice = dynamic_cast<SynthVoice*>(synth.getVoice(i)))
@@ -344,22 +356,182 @@ void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         }
     }
 
+    processArpeggiator(buffer, midiMessages, getPlayHead());
     synth.renderNextBlock(buffer, midiMessages, 0, buffer.getNumSamples());
 
-    // Apply wub LFO filter post-synth
-    bool wubEnabled = apvts.getRawParameterValue("wubEnabled")->load() > 0.5f;
-    if (wubEnabled)
+    // Apply LFO/DRAW filter modulation post-synth
+    bool modEnabled = apvts.getRawParameterValue("modEnabled")->load() > 0.5f;
+    if (modEnabled)
     {
-        float wubRate   = apvts.getRawParameterValue("wubRate")->load();
-        float wubDepth  = apvts.getRawParameterValue("wubDepth")->load();
-        float wubCenter = apvts.getRawParameterValue("wubCenter")->load();
-        int   wubType   = (int)apvts.getRawParameterValue("wubFilterType")->load();
-        float wubRes    = apvts.getRawParameterValue("wubResonance")->load();
+        float modRate   = apvts.getRawParameterValue("modRate")->load();
+        float modDepth  = apvts.getRawParameterValue("modDepth")->load();
+        int   modDepthMode = (int)apvts.getRawParameterValue("modDepthMode")->load();
+        int   modPolarity  = (int)apvts.getRawParameterValue("modPolarity")->load();
+        float modCenter = apvts.getRawParameterValue("modCenter")->load();
+        int   modType   = (int)apvts.getRawParameterValue("modFilterType")->load();
+        float modRes    = apvts.getRawParameterValue("modResonance")->load();
+        int   modSlope  = (int)apvts.getRawParameterValue("modSlope")->load();
 
-        wubEngine.setFilterType(wubType);
-        wubEngine.filter.setResonance(wubRes);
-        wubEngine.process(buffer, wubRate, wubDepth, wubCenter);
+        modEngine.setFilterType(modType, modSlope);
+        
+        // Scale resonance based on slope
+        float finalRes = modRes;
+        if (modSlope == 0) finalRes = 0.0f; // 6dB filters are non-resonant
+        else if (modSlope == 2) finalRes = modRes * 0.6f; // 18dB filters have slightly reduced resonance peak
+        modEngine.filter.setResonance(finalRes);
+        
+        bool isDraw = isModDrawMode.load();
+        float drawVal = modDrawValue.load();
+        modEngine.process(buffer, modRate, modDepth, modCenter, isDraw, drawVal, modDepthMode, modPolarity);
     }
+}
+
+void LatticeAudioProcessor::processArpeggiator(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages, juce::AudioPlayHead* playHead)
+{
+    bool arpEnabled = apvts.getRawParameterValue("arpEnabled")->load() > 0.5f;
+    if (!arpEnabled) {
+        arpeggiator.reset();
+        return;
+    }
+
+    int rateIdx = (int)apvts.getRawParameterValue("arpRate")->load();
+    float swing = apvts.getRawParameterValue("arpSwing")->load();
+    int arpMode = (int)apvts.getRawParameterValue("arpMode")->load();
+
+    // Map rate index to beat division
+    // "1/4", "1/8", "1/16", "1/32", "1/4D", "1/8D", "1/16D", "1/4T", "1/8T", "1/16T"
+    float beatDiv = 1.0f; 
+    switch (rateIdx) {
+        case 0: beatDiv = 1.0f; break; // 1/4 (1 beat)
+        case 1: beatDiv = 0.5f; break; // 1/8
+        case 2: beatDiv = 0.25f; break; // 1/16
+        case 3: beatDiv = 0.125f; break; // 1/32
+        case 4: beatDiv = 1.5f; break; // 1/4D
+        case 5: beatDiv = 0.75f; break; // 1/8D
+        case 6: beatDiv = 0.375f; break; // 1/16D
+        case 7: beatDiv = 2.0f/3.0f; break; // 1/4T
+        case 8: beatDiv = 1.0f/3.0f; break; // 1/8T
+        case 9: beatDiv = 0.5f/3.0f; break; // 1/16T
+    }
+
+    if (playHead != nullptr) {
+        if (auto pos = playHead->getPosition()) {
+            if (pos->getBpm().hasValue()) {
+                arpeggiator.bpm = *pos->getBpm();
+            }
+        }
+    }
+
+    float beatsPerSecond = arpeggiator.bpm / 60.0f;
+    float samplesPerBeat = arpeggiator.sampleRate / beatsPerSecond;
+    float samplesPerDiv = samplesPerBeat * beatDiv;
+
+    juce::MidiBuffer outMidi;
+    int samplePos = 0;
+    
+    for (const auto meta : midiMessages)
+    {
+        auto msg = meta.getMessage();
+        if (msg.isNoteOn()) {
+            arpeggiator.noteOn(msg.getNoteNumber());
+        } else if (msg.isNoteOff()) {
+            arpeggiator.noteOff(msg.getNoteNumber());
+        } else {
+            outMidi.addEvent(msg, meta.samplePosition);
+        }
+    }
+
+    // If arpeggiator is empty, flush all playing notes immediately
+    if (arpeggiator.heldNotes.isEmpty()) {
+        for (int n : arpeggiator.playingNotes) {
+            outMidi.addEvent(juce::MidiMessage::noteOff(1, n, 0.0f), 0);
+        }
+        arpeggiator.playingNotes.clear();
+        arpeggiator.samplesElapsed = 0; // reset for next keypress
+        midiMessages.swapWith(outMidi);
+        return;
+    }
+
+    int numSamples = buffer.getNumSamples();
+    for (int i = 0; i < numSamples; ++i)
+    {
+        bool isEvenStep = (arpeggiator.samplesElapsed / (int)samplesPerDiv) % 2 == 0;
+        int currentDivSamples = samplesPerDiv;
+        if (!isEvenStep) {
+            currentDivSamples += currentDivSamples * swing;
+        } else {
+            currentDivSamples -= currentDivSamples * swing;
+        }
+
+        if (arpeggiator.samplesElapsed >= currentDivSamples) {
+            arpeggiator.samplesElapsed = 0;
+            
+            // Turn off any playing notes
+            for (int n : arpeggiator.playingNotes) {
+                outMidi.addEvent(juce::MidiMessage::noteOff(1, n, 0.0f), i);
+            }
+            arpeggiator.playingNotes.clear();
+
+            if (!arpeggiator.heldNotes.isEmpty()) {
+                int noteToPlay = -1;
+                if (arpMode == 0) { // Repeat
+                    for (int n : arpeggiator.heldNotes) {
+                        outMidi.addEvent(juce::MidiMessage::noteOn(1, n, 0.8f), i);
+                        arpeggiator.playingNotes.add(n);
+                    }
+                } else if (arpMode == 1) { // Up
+                    noteToPlay = arpeggiator.heldNotes[arpeggiator.currentNoteIndex];
+                    arpeggiator.currentNoteIndex = (arpeggiator.currentNoteIndex + 1) % arpeggiator.heldNotes.size();
+                } else if (arpMode == 2) { // Down
+                    noteToPlay = arpeggiator.heldNotes[arpeggiator.heldNotes.size() - 1 - arpeggiator.currentNoteIndex];
+                    arpeggiator.currentNoteIndex = (arpeggiator.currentNoteIndex + 1) % arpeggiator.heldNotes.size();
+                } else if (arpMode == 3) { // UpDown
+                    int n = arpeggiator.heldNotes[arpeggiator.currentNoteIndex];
+                    outMidi.addEvent(juce::MidiMessage::noteOn(1, n, 0.8f), i);
+                    arpeggiator.playingNotes.add(n);
+
+                    if (arpeggiator.goingUp) {
+                        arpeggiator.currentNoteIndex++;
+                        if (arpeggiator.currentNoteIndex >= arpeggiator.heldNotes.size() - 1) {
+                            arpeggiator.goingUp = false;
+                        }
+                    } else {
+                        arpeggiator.currentNoteIndex--;
+                        if (arpeggiator.currentNoteIndex <= 0) {
+                            arpeggiator.goingUp = true;
+                        }
+                    }
+                } else if (arpMode == 4) { // As Played
+                    if (arpeggiator.currentNoteIndex >= arpeggiator.orderedNotes.size()) {
+                        arpeggiator.currentNoteIndex = 0;
+                    }
+                    int n = arpeggiator.orderedNotes[arpeggiator.currentNoteIndex];
+                    outMidi.addEvent(juce::MidiMessage::noteOn(1, n, 0.8f), i);
+                    arpeggiator.playingNotes.add(n);
+                    
+                    arpeggiator.currentNoteIndex++;
+                    if (arpeggiator.currentNoteIndex >= arpeggiator.orderedNotes.size()) {
+                        arpeggiator.currentNoteIndex = 0;
+                    }
+                }
+
+                if (noteToPlay != -1) {
+                    outMidi.addEvent(juce::MidiMessage::noteOn(1, noteToPlay, 0.8f), i);
+                    arpeggiator.playingNotes.add(noteToPlay);
+                }
+            }
+        } else if (arpeggiator.samplesElapsed == (int)(samplesPerDiv * 0.5f)) {
+            // Note off for all arpeggiated notes to create short plucks
+            for (int n : arpeggiator.playingNotes) {
+                outMidi.addEvent(juce::MidiMessage::noteOff(1, n, 0.0f), i);
+            }
+            arpeggiator.playingNotes.clear();
+        }
+
+        arpeggiator.samplesElapsed++;
+    }
+
+    midiMessages.swapWith(outMidi);
 }
 
 //==============================================================================

@@ -11,22 +11,38 @@ LatticeAudioProcessorEditor::LatticeAudioProcessorEditor (LatticeAudioProcessor&
     : AudioProcessorEditor (p), processorRef (p)
 {
     // Initialize parameter attachments
-    cutoffAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("cutoff"), cutoffRelay, processorRef.apvts.undoManager);
-    resonanceAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("resonance"), resonanceRelay, processorRef.apvts.undoManager);
     attackAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("attack"), attackRelay, processorRef.apvts.undoManager);
     decayAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("decay"), decayRelay, processorRef.apvts.undoManager);
     sustainAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("sustain"), sustainRelay, processorRef.apvts.undoManager);
     releaseAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("release"), releaseRelay, processorRef.apvts.undoManager);
-    oscTypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("oscType"), oscTypeRelay, processorRef.apvts.undoManager);
+    cutoffAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("cutoff"), cutoffRelay, processorRef.apvts.undoManager);
+    resonanceAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("resonance"), resonanceRelay, processorRef.apvts.undoManager);
+    osc1ActiveAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("osc1Active"), osc1ActiveRelay, processorRef.apvts.undoManager);
+    osc1TypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("osc1Type"), osc1TypeRelay, processorRef.apvts.undoManager);
+    osc1LevelAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("osc1Level"), osc1LevelRelay, processorRef.apvts.undoManager);
+    osc2ActiveAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("osc2Active"), osc2ActiveRelay, processorRef.apvts.undoManager);
+    osc2TypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("osc2Type"), osc2TypeRelay, processorRef.apvts.undoManager);
+    osc2LevelAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("osc2Level"), osc2LevelRelay, processorRef.apvts.undoManager);
+    osc3ActiveAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("osc3Active"), osc3ActiveRelay, processorRef.apvts.undoManager);
+    osc3TypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("osc3Type"), osc3TypeRelay, processorRef.apvts.undoManager);
+    osc3LevelAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("osc3Level"), osc3LevelRelay, processorRef.apvts.undoManager);
     legatoAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("legato"), legatoRelay, processorRef.apvts.undoManager);
     glideTimeAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("glideTime"), glideTimeRelay, processorRef.apvts.undoManager);
 
-    wubEnabledAttachment    = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("wubEnabled"),    wubEnabledRelay,    processorRef.apvts.undoManager);
-    wubRateAttachment       = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("wubRate"),       wubRateRelay,       processorRef.apvts.undoManager);
-    wubDepthAttachment      = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("wubDepth"),      wubDepthRelay,      processorRef.apvts.undoManager);
-    wubCenterAttachment     = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("wubCenter"),     wubCenterRelay,     processorRef.apvts.undoManager);
-    wubResonanceAttachment  = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("wubResonance"),  wubResonanceRelay,  processorRef.apvts.undoManager);
-    wubFilterTypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("wubFilterType"), wubFilterTypeRelay, processorRef.apvts.undoManager);
+    modEnabledAttachment    = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("modEnabled"),    modEnabledRelay,    processorRef.apvts.undoManager);
+    modRateAttachment       = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("modRate"),       modRateRelay,       processorRef.apvts.undoManager);
+    modDepthAttachment      = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("modDepth"),      modDepthRelay,      processorRef.apvts.undoManager);
+    modCenterAttachment     = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("modCenter"),     modCenterRelay,     processorRef.apvts.undoManager);
+    modResonanceAttachment  = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("modResonance"),  modResonanceRelay,  processorRef.apvts.undoManager);
+    modFilterTypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("modFilterType"), modFilterTypeRelay, processorRef.apvts.undoManager);
+    modDepthModeAttachment  = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("modDepthMode"), modDepthModeRelay, processorRef.apvts.undoManager);
+    modPolarityAttachment   = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("modPolarity"),  modPolarityRelay,  processorRef.apvts.undoManager);
+    modSlopeAttachment      = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("modSlope"),     modSlopeRelay,     processorRef.apvts.undoManager);
+
+    arpEnabledAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("arpEnabled"), arpEnabledRelay, processorRef.apvts.undoManager);
+    arpRateAttachment    = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("arpRate"),    arpRateRelay,    processorRef.apvts.undoManager);
+    arpSwingAttachment   = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("arpSwing"),   arpSwingRelay,   processorRef.apvts.undoManager);
+    arpModeAttachment    = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("arpMode"),    arpModeRelay,    processorRef.apvts.undoManager);
 
     webView = std::make_unique<juce::WebBrowserComponent> (
         juce::WebBrowserComponent::Options{}
@@ -43,28 +59,54 @@ LatticeAudioProcessorEditor::LatticeAudioProcessorEditor (LatticeAudioProcessor&
                 }
                 completion (juce::var());
             })
+            .withNativeFunction("sendModDrawState", [this] (const juce::Array<juce::var>& args, juce::WebBrowserComponent::NativeFunctionCompletion completion)
+            {
+                if (args.size() == 2)
+                {
+                    bool isDraw = args[0];
+                    float val = (float)args[1];
+                    processorRef.isModDrawMode.store (isDraw);
+                    processorRef.modDrawValue.store (val);
+                }
+                completion (juce::var());
+            })
             .withResourceProvider ([] (const auto&) { return std::nullopt; }, absynthUiDevServerURL)
-            .withOptionsFrom(cutoffRelay)
-            .withOptionsFrom(resonanceRelay)
             .withOptionsFrom(attackRelay)
             .withOptionsFrom(decayRelay)
             .withOptionsFrom(sustainRelay)
             .withOptionsFrom(releaseRelay)
-            .withOptionsFrom(oscTypeRelay)
+            .withOptionsFrom(cutoffRelay)
+            .withOptionsFrom(resonanceRelay)
+            .withOptionsFrom(osc1ActiveRelay)
+            .withOptionsFrom(osc1TypeRelay)
+            .withOptionsFrom(osc1LevelRelay)
+            .withOptionsFrom(osc2ActiveRelay)
+            .withOptionsFrom(osc2TypeRelay)
+            .withOptionsFrom(osc2LevelRelay)
+            .withOptionsFrom(osc3ActiveRelay)
+            .withOptionsFrom(osc3TypeRelay)
+            .withOptionsFrom(osc3LevelRelay)
             .withOptionsFrom(legatoRelay)
             .withOptionsFrom(glideTimeRelay)
-            .withOptionsFrom(wubEnabledRelay)
-            .withOptionsFrom(wubRateRelay)
-            .withOptionsFrom(wubDepthRelay)
-            .withOptionsFrom(wubCenterRelay)
-            .withOptionsFrom(wubResonanceRelay)
-            .withOptionsFrom(wubFilterTypeRelay)
+            .withOptionsFrom(modEnabledRelay)
+            .withOptionsFrom(modRateRelay)
+            .withOptionsFrom(modDepthRelay)
+            .withOptionsFrom(modCenterRelay)
+            .withOptionsFrom(modResonanceRelay)
+            .withOptionsFrom(modFilterTypeRelay)
+            .withOptionsFrom(modDepthModeRelay)
+            .withOptionsFrom(modPolarityRelay)
+            .withOptionsFrom(modSlopeRelay)
+            .withOptionsFrom(arpEnabledRelay)
+            .withOptionsFrom(arpRateRelay)
+            .withOptionsFrom(arpSwingRelay)
+            .withOptionsFrom(arpModeRelay)
     );
     addAndMakeVisible (*webView);
     
     setResizable(true, true);
     setResizeLimits(800, 500, 2000, 1600);
-    setSize (1200, 780);
+    setSize (1200, 1000);
 
     juce::MessageManager::callAsync ([this]
                                      {

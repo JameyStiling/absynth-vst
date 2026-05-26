@@ -58,8 +58,8 @@ public:
     void noteOff(int midiChannel, int midiNoteNumber, float velocity, bool allowTailOff) override;
 };
 
-// LFO-driven wub filter (applied post-synth on the master bus)
-struct WubEngine
+// LFO-driven modulation filter (applied post-synth on the master bus)
+struct ModEngine
 {
     juce::dsp::LadderFilter<float> filter;
     double sampleRate { 44100.0 };
@@ -74,14 +74,19 @@ struct WubEngine
         lfoPhase = 0.0;
     }
 
-    void setFilterType(int type) // 0 = LPF, 1 = BPF
+    void setFilterType(int type, int slope) // type: 0 = LPF, 1 = HPF, 2 = BPF; slope: 0 = 6dB, 1 = 12dB, 2 = 18dB, 3 = 24dB
     {
-        filter.setMode(type == 1 ? juce::dsp::LadderFilterMode::BPF24
-                                 : juce::dsp::LadderFilterMode::LPF24);
+        bool is12 = (slope == 0 || slope == 1);
+        if (type == 1) // HPF
+            filter.setMode(is12 ? juce::dsp::LadderFilterMode::HPF12 : juce::dsp::LadderFilterMode::HPF24);
+        else if (type == 2) // BPF
+            filter.setMode(is12 ? juce::dsp::LadderFilterMode::BPF12 : juce::dsp::LadderFilterMode::BPF24);
+        else // LPF
+            filter.setMode(is12 ? juce::dsp::LadderFilterMode::LPF12 : juce::dsp::LadderFilterMode::LPF24);
     }
 
-    // Process a buffer in-place, sweeping the filter cutoff via LFO
-    void process(juce::AudioBuffer<float>& buffer, float rate, float depth, float center)
+    // Process a buffer in-place, sweeping the filter cutoff via LFO or DRAW mod
+    void process(juce::AudioBuffer<float>& buffer, float rate, float depth, float center, bool isDrawMode, float drawVal, int depthMode, int polarity)
     {
         const double twoPi = juce::MathConstants<double>::twoPi;
         const double phaseIncrement = rate / sampleRate;
@@ -94,12 +99,43 @@ struct WubEngine
 
         for (int s = 0; s < numSamples; ++s)
         {
-            float lfo = (float)std::sin(twoPi * lfoPhase);
-            lfoPhase += phaseIncrement;
-            if (lfoPhase >= 1.0) lfoPhase -= 1.0;
+            float lfo = 0.0f;
+            if (isDrawMode)
+            {
+                lfo = drawVal;
+            }
+            else
+            {
+                lfo = (float)std::sin(twoPi * lfoPhase);
+                lfoPhase += phaseIncrement;
+                if (lfoPhase >= 1.0) lfoPhase -= 1.0;
+            }
 
-            float halfRange = center * depth;
-            float cutoff = juce::jlimit(20.0f, 20000.0f, center + lfo * halfRange);
+            float lfoVal = lfo; // Expected -1.0 to 1.0
+            if (polarity == 0) { // Unipolar (+)
+                lfoVal = (lfoVal + 1.0f) * 0.5f;
+            }
+
+            float actualDepth = depth;
+            if (depthMode == 1) actualDepth = depth * 60.0f; // 5 Octaves = 60 Semitones
+            else if (depthMode == 2) actualDepth = depth * 5.0f; // 5 Octaves
+
+            float cutoff = center;
+            if (depthMode == 0) { // % mode (Dynamic Headroom)
+                if (polarity == 0) { // Unipolar (+)
+                    float headroom = 20000.0f - center;
+                    cutoff = center + (lfoVal * depth * headroom);
+                } else { // Bipolar (+/-)
+                    float headroom = (lfoVal > 0.0f) ? (20000.0f - center) : (center - 20.0f);
+                    cutoff = center + (lfoVal * depth * headroom);
+                }
+            } else if (depthMode == 1) { // Semi
+                cutoff = center * std::pow(2.0f, (lfoVal * actualDepth) / 12.0f);
+            } else if (depthMode == 2) { // Oct
+                cutoff = center * std::pow(2.0f, lfoVal * actualDepth);
+            }
+            cutoff = juce::jlimit(20.0f, 20000.0f, cutoff);
+
             filter.setCutoffFrequencyHz(cutoff);
 
             for (int ch = 0; ch < numChannels; ++ch)
@@ -112,6 +148,62 @@ struct WubEngine
             for (int ch = 0; ch < numChannels; ++ch)
                 buffer.setSample(ch, s, oneSample.getSample(ch, 0));
         }
+    }
+};
+
+struct Arpeggiator
+{
+    bool enabled { false };
+    float rate { 0.25f }; // Quarter note default
+    float swing { 0.0f }; // 0 to 1.0
+    int mode { 0 }; // 0: Repeat, 1: Up, 2: Down, 3: UpDown
+
+    double sampleRate { 44100.0 };
+    int samplesPerBeat { 10000 };
+    int samplesElapsed { 0 };
+    float bpm { 120.0f };
+
+    juce::Array<int> heldNotes;
+    juce::Array<int> orderedNotes;
+    juce::Array<int> playingNotes;
+    int currentNoteIndex { 0 };
+    bool goingUp { true };
+    
+    void prepare(double sr)
+    {
+        sampleRate = sr;
+        samplesElapsed = 0;
+    }
+
+    void noteOn(int note)
+    {
+        if (!heldNotes.contains(note))
+        {
+            if (heldNotes.isEmpty()) {
+                samplesElapsed = 9999999; // Force immediate trigger
+            }
+            heldNotes.add(note);
+            heldNotes.sort();
+            orderedNotes.add(note);
+        }
+    }
+
+    void noteOff(int note)
+    {
+        heldNotes.removeAllInstancesOf(note);
+        orderedNotes.removeAllInstancesOf(note);
+        if (heldNotes.isEmpty()) {
+            currentNoteIndex = 0;
+        }
+    }
+
+    void reset()
+    {
+        heldNotes.clear();
+        orderedNotes.clear();
+        playingNotes.clear();
+        currentNoteIndex = 0;
+        samplesElapsed = 0;
     }
 };
 
@@ -153,11 +245,18 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
+    // Bridge variables for streaming custom MSEG modulation
+    std::atomic<bool> isModDrawMode { false };
+    std::atomic<float> modDrawValue { 0.0f };
+
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     
     CustomSynth synth;
-    WubEngine wubEngine;
+    ModEngine modEngine;
+    Arpeggiator arpeggiator;
+
+    void processArpeggiator(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages, juce::AudioPlayHead* playHead);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LatticeAudioProcessor)
 };
