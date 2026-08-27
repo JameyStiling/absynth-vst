@@ -50,6 +50,29 @@ private:
     juce::WebSliderRelay arpSwingRelay { "arpSwing" };
     juce::WebComboBoxRelay arpModeRelay { "arpMode" };
     juce::WebComboBoxRelay midiChannelRelay { "midiChannel" };
+    juce::WebComboBoxRelay postFxOrderRelay { "postFxOrder" };
+
+#ifdef LATTICE_HAS_MODULES
+    // Nebuli granular cloud reverb
+    juce::WebToggleButtonRelay nebuliEnableRelay { "nebuli_enable" };
+    juce::WebSliderRelay nebuliMixRelay { "nebuli_mix" };
+    juce::WebToggleButtonRelay nebuliFreezeRelay { "nebuli_freeze" };
+    juce::WebSliderRelay nebuliGrainCountRelay { "nebuli_grain_count" };
+    juce::WebSliderRelay nebuliGrainSizeRelay { "nebuli_grain_size" };
+    juce::WebSliderRelay nebuliGrainSizeRandRelay { "nebuli_grain_size_rand" };
+    juce::WebSliderRelay nebuliGrainPositionRandRelay { "nebuli_grain_position_rand" };
+    juce::WebSliderRelay nebuliSpeedRelay { "nebuli_speed" };
+    juce::WebSliderRelay nebuliDetuneRelay { "nebuli_detune" };
+    juce::WebComboBoxRelay nebuliFilterTypeRelay { "nebuli_filter_type" };
+    juce::WebSliderRelay nebuliFilterCutoffRelay { "nebuli_filter_cutoff" };
+    juce::WebSliderRelay nebuliFilterResonanceRelay { "nebuli_filter_resonance" };
+    juce::WebSliderRelay nebuliStereoWidthRelay { "nebuli_stereo_width" };
+    juce::WebSliderRelay nebuliTailRelay { "nebuli_tail" };
+
+    // Monoizer low-end mono module
+    juce::WebToggleButtonRelay monoizerEnableRelay { "monoizer_enable" };
+    juce::WebSliderRelay monoizerCutoffRelay { "monoizer_cutoff" };
+#endif
 
     std::unique_ptr<juce::WebSliderParameterAttachment> attackAttachment;
     std::unique_ptr<juce::WebSliderParameterAttachment> decayAttachment;
@@ -85,6 +108,26 @@ private:
     std::unique_ptr<juce::WebSliderParameterAttachment> arpSwingAttachment;
     std::unique_ptr<juce::WebComboBoxParameterAttachment> arpModeAttachment;
     std::unique_ptr<juce::WebComboBoxParameterAttachment> midiChannelAttachment;
+    std::unique_ptr<juce::WebComboBoxParameterAttachment> postFxOrderAttachment;
+
+#ifdef LATTICE_HAS_MODULES
+    std::unique_ptr<juce::WebToggleButtonParameterAttachment> nebuliEnableAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliMixAttachment;
+    std::unique_ptr<juce::WebToggleButtonParameterAttachment> nebuliFreezeAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliGrainCountAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliGrainSizeAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliGrainSizeRandAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliGrainPositionRandAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliSpeedAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliDetuneAttachment;
+    std::unique_ptr<juce::WebComboBoxParameterAttachment> nebuliFilterTypeAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliFilterCutoffAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliFilterResonanceAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliStereoWidthAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> nebuliTailAttachment;
+    std::unique_ptr<juce::WebToggleButtonParameterAttachment> monoizerEnableAttachment;
+    std::unique_ptr<juce::WebSliderParameterAttachment> monoizerCutoffAttachment;
+#endif
 
     std::unique_ptr<juce::WebBrowserComponent> webView;
     bool webViewCreated { false };

@@ -254,6 +254,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout LatticeAudioProcessor::creat
     params.push_back(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{"modResonance", 1}, "Mod Resonance", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"modFilterType", 1}, "Mod Filter", juce::StringArray{"LPF", "HPF", "BPF"}, 0));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"modSlope", 1}, "Mod Slope", juce::StringArray{"6 dB/Oct", "12 dB/Oct", "18 dB/Oct", "24 dB/Oct"}, 1));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{"postFxOrder", 1},
+        "Post FX Order",
+        juce::StringArray{"Mod -> Nebuli", "Nebuli -> Mod"},
+        0));
 
     // Arpeggiator
     params.push_back(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"arpEnabled", 1}, "Arp Enabled", false));
@@ -457,39 +462,58 @@ void LatticeAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     processArpeggiator (buffer, channelMidi, getPlayHead());
     synth.renderNextBlock (buffer, channelMidi, 0, buffer.getNumSamples());
 
-    // Apply LFO/DRAW filter modulation post-synth
-    bool modEnabled = apvts.getRawParameterValue("modEnabled")->load() > 0.5f;
-    if (modEnabled)
+    auto processModStage = [&]()
     {
-        float modRate   = apvts.getRawParameterValue("modRate")->load();
-        float modDepth  = apvts.getRawParameterValue("modDepth")->load();
-        int   modDepthMode = (int)apvts.getRawParameterValue("modDepthMode")->load();
-        int   modPolarity  = (int)apvts.getRawParameterValue("modPolarity")->load();
-        float modCenter = apvts.getRawParameterValue("modCenter")->load();
-        int   modType   = (int)apvts.getRawParameterValue("modFilterType")->load();
-        float modRes    = apvts.getRawParameterValue("modResonance")->load();
-        int   modSlope  = (int)apvts.getRawParameterValue("modSlope")->load();
+        const bool modEnabled = apvts.getRawParameterValue("modEnabled")->load() > 0.5f;
+        if (!modEnabled)
+            return;
+
+        const float modRate = apvts.getRawParameterValue("modRate")->load();
+        const float modDepth = apvts.getRawParameterValue("modDepth")->load();
+        const int modDepthMode = (int)apvts.getRawParameterValue("modDepthMode")->load();
+        const int modPolarity = (int)apvts.getRawParameterValue("modPolarity")->load();
+        const float modCenter = apvts.getRawParameterValue("modCenter")->load();
+        const int modType = (int)apvts.getRawParameterValue("modFilterType")->load();
+        const float modRes = apvts.getRawParameterValue("modResonance")->load();
+        const int modSlope = (int)apvts.getRawParameterValue("modSlope")->load();
 
         modEngine.setFilterType(modType, modSlope);
-        
+
         // Scale resonance based on slope
         float finalRes = modRes;
         if (modSlope == 0) finalRes = 0.0f; // 6dB filters are non-resonant
         else if (modSlope == 2) finalRes = modRes * 0.6f; // 18dB filters have slightly reduced resonance peak
         modEngine.filter.setResonance(finalRes);
-        
-        bool isDraw = isModDrawMode.load();
-        float drawVal = modDrawValue.load();
-        modEngine.process(buffer, modRate, modDepth, modCenter, isDraw, drawVal, modDepthMode, modPolarity);
-    }
 
-    #ifdef LATTICE_HAS_MODULES
-    for (auto& module : modules)
+        const bool isDraw = isModDrawMode.load();
+        const float drawVal = modDrawValue.load();
+        modEngine.process(buffer, modRate, modDepth, modCenter, isDraw, drawVal, modDepthMode, modPolarity);
+    };
+
+#ifdef LATTICE_HAS_MODULES
+    auto processModuleStage = [&]()
     {
-        module->updateFromAPVTS(apvts);
-        module->process(buffer);
+        for (auto& module : modules)
+        {
+            module->updateFromAPVTS(apvts);
+            module->process(buffer);
+        }
+    };
+
+    const int postFxOrder = (int)apvts.getRawParameterValue("postFxOrder")->load();
+    if (postFxOrder == 1)
+    {
+        processModuleStage(); // Nebuli first
+        processModStage();    // then mod filter
     }
-    #endif
+    else
+    {
+        processModStage();    // default: mod first
+        processModuleStage(); // then Nebuli
+    }
+#else
+    processModStage();
+#endif
 
     refreshActiveNotesSnapshot();
 }

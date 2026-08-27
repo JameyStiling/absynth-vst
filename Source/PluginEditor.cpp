@@ -177,6 +177,26 @@ LatticeAudioProcessorEditor::LatticeAudioProcessorEditor (LatticeAudioProcessor&
     arpSwingAttachment   = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("arpSwing"),   arpSwingRelay,   processorRef.apvts.undoManager);
     arpModeAttachment    = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("arpMode"),    arpModeRelay,    processorRef.apvts.undoManager);
     midiChannelAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("midiChannel"), midiChannelRelay, processorRef.apvts.undoManager);
+    postFxOrderAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("postFxOrder"), postFxOrderRelay, processorRef.apvts.undoManager);
+
+#ifdef LATTICE_HAS_MODULES
+    nebuliEnableAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("nebuli_enable"), nebuliEnableRelay, processorRef.apvts.undoManager);
+    nebuliMixAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_mix"), nebuliMixRelay, processorRef.apvts.undoManager);
+    nebuliFreezeAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("nebuli_freeze"), nebuliFreezeRelay, processorRef.apvts.undoManager);
+    nebuliGrainCountAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_grain_count"), nebuliGrainCountRelay, processorRef.apvts.undoManager);
+    nebuliGrainSizeAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_grain_size"), nebuliGrainSizeRelay, processorRef.apvts.undoManager);
+    nebuliGrainSizeRandAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_grain_size_rand"), nebuliGrainSizeRandRelay, processorRef.apvts.undoManager);
+    nebuliGrainPositionRandAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_grain_position_rand"), nebuliGrainPositionRandRelay, processorRef.apvts.undoManager);
+    nebuliSpeedAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_speed"), nebuliSpeedRelay, processorRef.apvts.undoManager);
+    nebuliDetuneAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_detune"), nebuliDetuneRelay, processorRef.apvts.undoManager);
+    nebuliFilterTypeAttachment = std::make_unique<juce::WebComboBoxParameterAttachment>(*processorRef.apvts.getParameter("nebuli_filter_type"), nebuliFilterTypeRelay, processorRef.apvts.undoManager);
+    nebuliFilterCutoffAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_filter_cutoff"), nebuliFilterCutoffRelay, processorRef.apvts.undoManager);
+    nebuliFilterResonanceAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_filter_resonance"), nebuliFilterResonanceRelay, processorRef.apvts.undoManager);
+    nebuliStereoWidthAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_stereo_width"), nebuliStereoWidthRelay, processorRef.apvts.undoManager);
+    nebuliTailAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("nebuli_tail"), nebuliTailRelay, processorRef.apvts.undoManager);
+    monoizerEnableAttachment = std::make_unique<juce::WebToggleButtonParameterAttachment>(*processorRef.apvts.getParameter("monoizer_enable"), monoizerEnableRelay, processorRef.apvts.undoManager);
+    monoizerCutoffAttachment = std::make_unique<juce::WebSliderParameterAttachment>(*processorRef.apvts.getParameter("monoizer_cutoff"), monoizerCutoffRelay, processorRef.apvts.undoManager);
+#endif
 
     setResizable (true, true);
     setResizeLimits (800, 500, 2000, 1600);
@@ -276,7 +296,27 @@ void LatticeAudioProcessorEditor::ensureWebViewCreated()
                .withOptionsFrom (arpRateRelay)
                .withOptionsFrom (arpSwingRelay)
                .withOptionsFrom (arpModeRelay)
-               .withOptionsFrom (midiChannelRelay));
+               .withOptionsFrom (midiChannelRelay)
+               .withOptionsFrom (postFxOrderRelay)
+#ifdef LATTICE_HAS_MODULES
+               .withOptionsFrom (nebuliEnableRelay)
+               .withOptionsFrom (nebuliMixRelay)
+               .withOptionsFrom (nebuliFreezeRelay)
+               .withOptionsFrom (nebuliGrainCountRelay)
+               .withOptionsFrom (nebuliGrainSizeRelay)
+               .withOptionsFrom (nebuliGrainSizeRandRelay)
+               .withOptionsFrom (nebuliGrainPositionRandRelay)
+               .withOptionsFrom (nebuliSpeedRelay)
+               .withOptionsFrom (nebuliDetuneRelay)
+               .withOptionsFrom (nebuliFilterTypeRelay)
+               .withOptionsFrom (nebuliFilterCutoffRelay)
+               .withOptionsFrom (nebuliFilterResonanceRelay)
+               .withOptionsFrom (nebuliStereoWidthRelay)
+               .withOptionsFrom (nebuliTailRelay)
+               .withOptionsFrom (monoizerEnableRelay)
+               .withOptionsFrom (monoizerCutoffRelay)
+#endif
+               );
 
     addAndMakeVisible (*webView);
 
