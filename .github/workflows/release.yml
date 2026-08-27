@@ -1,10 +1,12 @@
 # Release macOS demo zips from this repo + absynth-ui (matches lattice-landing download URL).
+#
+# Manual-only. The normal path is `npm run release:{patch,minor,major}` from the
+# absynth-ui monorepo, which builds locally (picking up sibling lattice-modules)
+# and publishes the Release. This workflow is the fallback for a clean-room build
+# that intentionally excludes the paid modules — run it from the Actions tab.
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:
